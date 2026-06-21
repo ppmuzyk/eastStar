@@ -1,0 +1,8 @@
+[package]
+name = "eaststar"
+version = "0.1.0"
+edition = "2024"
+description = "A GNOME-first Wayland screensaver and lock visualizer"
+license = "MIT"
+
+[dependencies]
