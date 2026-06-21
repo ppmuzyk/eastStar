@@ -14,12 +14,21 @@ The first milestone is a local Linux app that:
 
 ## Current State
 
-This repository is in the bootstrap phase. The first code target is a thin executable shell plus architecture notes for:
+This repository is in the bootstrap phase. The current code target is a visible fullscreen demo shell plus architecture notes for:
 
 - idle detection
 - fullscreen rendering
 - session locking
 - desktop-specific adapters
+
+## Current Demo
+
+Running the app starts a fullscreen animated starfield placeholder.
+
+- `Esc` exits the demo
+- `L` triggers the current lock placeholder in the terminal output
+
+This is not a real screensaver yet. It is the first visible stepping stone toward one.
 
 ## Planned Milestones
 

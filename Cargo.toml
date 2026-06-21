@@ -6,3 +6,4 @@ description = "A GNOME-first Wayland screensaver and lock visualizer"
 license = "MIT"
 
 [dependencies]
+macroquad = "0.4.14"

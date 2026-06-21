@@ -1,6 +1,7 @@
 use crate::lock::{NoopLocker, SessionLocker};
 use crate::platform::{DesktopTarget, GnomeIdleMonitor, IdleMonitor};
-use crate::visual::{PlaceholderVisual, VisualSession};
+use crate::visual::{StarfieldVisual, VisualSession};
+use macroquad::prelude::*;
 
 pub struct App {
     desktop: DesktopTarget,
@@ -14,12 +15,12 @@ impl App {
         Self {
             desktop: DesktopTarget::GnomeWayland,
             idle_monitor: Box::new(GnomeIdleMonitor::new(300)),
-            visual_session: Box::new(PlaceholderVisual),
+            visual_session: Box::new(StarfieldVisual::new()),
             locker: Box::new(NoopLocker),
         }
     }
 
-    pub fn run(&self) {
+    pub fn prepare(&mut self) {
         println!("eastStar bootstrap: app shell is alive");
         println!("desktop target: {:?}", self.desktop);
         println!(
@@ -27,10 +28,24 @@ impl App {
             self.idle_monitor.backend_name(),
             self.idle_monitor.idle_threshold_seconds()
         );
-
         self.visual_session.prepare();
-        self.visual_session.show();
-        self.locker.lock();
-        self.visual_session.hide();
+    }
+
+    pub fn update(&mut self) {
+        if is_key_pressed(KeyCode::L) {
+            self.locker.lock();
+        }
+
+        let width = screen_width();
+        let height = screen_height();
+        let dt = get_frame_time();
+
+        self.visual_session.update(width, height, dt);
+    }
+
+    pub fn draw(&self) {
+        let width = screen_width();
+        let height = screen_height();
+        self.visual_session.draw(width, height);
     }
 }

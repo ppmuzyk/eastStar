@@ -6,6 +6,6 @@ pub struct NoopLocker;
 
 impl SessionLocker for NoopLocker {
     fn lock(&self) {
-        println!("lock: no desktop lock integration is wired yet");
+        println!("lock: placeholder trigger, no desktop lock integration is wired yet");
     }
 }

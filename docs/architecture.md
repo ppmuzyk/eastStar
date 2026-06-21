@@ -4,6 +4,8 @@
 
 Build a Linux screensaver-style application that is pleasant visually but also behaves like a system-integrated desktop app.
 
+The current implementation is a manual fullscreen visual demo so rendering and app structure can be tested before idle and lock integration are real.
+
 ## First Target
 
 The first supported environment is:
