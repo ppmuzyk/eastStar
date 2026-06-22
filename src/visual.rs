@@ -109,13 +109,36 @@ impl NebulaFlightVisual {
             radius: gen_range(0.6, 1.8),
         }
     }
+
+    fn seed_star(width: f32, height: f32) -> NebulaStar {
+        let center = vec2(width * 0.5, height * 0.5);
+        let position = vec2(gen_range(0.0, width), gen_range(0.0, height));
+        let radial = position - center;
+        let fallback = vec2(gen_range(-1.0, 1.0), gen_range(-1.0, 1.0));
+        let direction = if radial.length_squared() > 1.0 {
+            radial.normalize()
+        } else if fallback.length_squared() > 0.01 {
+            fallback.normalize()
+        } else {
+            vec2(1.0, 0.0)
+        };
+        let distance = radial.length();
+        let speed = gen_range(18.0, 74.0) * (0.75 + (distance / width.max(height)).clamp(0.0, 1.0));
+
+        NebulaStar {
+            position,
+            velocity: direction * speed,
+            glow: gen_range(0.0, std::f32::consts::TAU),
+            radius: (0.55 + distance / 700.0).clamp(0.6, 2.6),
+        }
+    }
 }
 
 impl VisualSession for NebulaFlightVisual {
     fn prepare(&mut self, width: f32, height: f32) {
         self.ensure_texture();
         self.stars = (0..NEBULA_STAR_COUNT)
-            .map(|_| Self::spawn_star(width, height))
+            .map(|_| Self::seed_star(width, height))
             .collect();
     }
 
@@ -141,7 +164,7 @@ impl VisualSession for NebulaFlightVisual {
                 let length = radial.length().max(1.0);
                 let direction = radial / length;
                 star.velocity = direction * star.velocity.length();
-                star.radius = (0.50 + length / 760.0).min(2.0);
+                star.radius = (0.55 + length / 700.0).min(2.6);
             }
         }
     }
@@ -203,7 +226,7 @@ impl VisualSession for NebulaFlightVisual {
                 &texture,
                 0.0,
                 0.0,
-                Color::new(0.61, 0.63, 0.69, alpha),
+                Color::new(0.69, 0.71, 0.77, alpha),
                 DrawTextureParams {
                     dest_size: Some(vec2(width, height)),
                     source: Some(Rect::new(
@@ -217,22 +240,22 @@ impl VisualSession for NebulaFlightVisual {
             );
         };
 
-        draw_fullscreen_layer(2.0_f32.powf(-zoom_phase), 0.18 * (1.0 - phase_mix));
-        draw_fullscreen_layer(2.0_f32.powf(1.0 - zoom_phase), 0.18 * phase_mix);
+        draw_fullscreen_layer(2.0_f32.powf(-zoom_phase), 0.22 * (1.0 - phase_mix));
+        draw_fullscreen_layer(2.0_f32.powf(1.0 - zoom_phase), 0.22 * phase_mix);
 
         draw_rectangle(
             0.0,
             0.0,
             width,
             height,
-            Color::from_rgba(3, 6, 14, 168),
+            Color::from_rgba(3, 6, 14, 148),
         );
         draw_rectangle(
             0.0,
             0.0,
             width,
             height,
-            Color::from_rgba(10, 12, 18, 14),
+            Color::from_rgba(10, 12, 18, 10),
         );
 
         let center = vec2(width * 0.5, height * 0.5);
@@ -241,21 +264,26 @@ impl VisualSession for NebulaFlightVisual {
             let distance = radial.length().max(1.0);
             let direction = radial / distance;
             let streak = direction * (4.0 + distance * 0.032);
-            let alpha = 0.08 + 0.14 * ((star.glow.sin() + 1.0) * 0.5);
+            let alpha = 0.096 + 0.168 * ((star.glow.sin() + 1.0) * 0.5);
+            let edge_x = ((star.position.x / width) - 0.5).abs() * 2.0;
+            let edge_y = ((star.position.y / height) - 0.5).abs() * 2.0;
+            let edge_proximity = edge_x.max(edge_y).clamp(0.0, 1.0);
+            let edge_growth = smoothstep(0.58, 1.0, edge_proximity);
+            let star_radius = star.radius * (1.0 + edge_growth * 0.55);
 
             draw_line(
                 star.position.x - streak.x,
                 star.position.y - streak.y,
                 star.position.x,
                 star.position.y,
-                0.7 + distance / 1200.0,
-                Color::new(0.78, 0.80, 0.84, alpha * 0.24),
+                0.8 + distance / 1080.0 + edge_growth * 0.35,
+                Color::new(0.84, 0.86, 0.90, alpha * 0.29),
             );
             draw_circle(
                 star.position.x,
                 star.position.y,
-                star.radius,
-                Color::new(0.86, 0.88, 0.92, alpha),
+                star_radius,
+                Color::new(0.92, 0.94, 0.98, alpha),
             );
         }
     }
