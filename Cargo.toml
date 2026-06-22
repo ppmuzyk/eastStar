@@ -4,6 +4,20 @@ version = "0.1.0"
 edition = "2024"
 description = "A GNOME-first Wayland screensaver and lock visualizer"
 license = "MIT"
+default-run = "eaststar"
+
+[[bin]]
+name = "eaststar"
+path = "src/main.rs"
+
+[[bin]]
+name = "eaststar-saver"
+path = "src/bin/eaststar-saver.rs"
 
 [dependencies]
+gtk = { package = "gtk4", version = "0.10" }
+image = { version = "0.24.9", default-features = false, features = ["jpeg", "png"] }
 macroquad = "0.4.14"
+
+[build-dependencies]
+image = { version = "0.24.9", default-features = false, features = ["png"] }

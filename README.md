@@ -8,38 +8,52 @@ The first milestone is a local Linux app that:
 
 - detects user inactivity on GNOME
 - shows a fullscreen visual experience
-- locks the session as part of the flow
+- replaces blank-screen behavior with a saver visual
+- leaves actual session lock timing under GNOME system settings
 - works on a single monitor first
 - leaves room for future KDE and multi-monitor support
 
 ## Current State
 
-This repository is in the bootstrap phase. The current code target is a visible fullscreen demo shell plus architecture notes for:
+This repository is now in an early controller-app phase.
 
-- idle detection
-- fullscreen rendering
-- session locking
-- desktop-specific adapters
+Running the app opens a normal control panel window that:
 
-## Current Demo
+- polls GNOME idle time through Mutter's idle monitor
+- persists its own saver settings to `~/.config/eaststar/settings.conf`
+- promotes itself into fullscreen saver mode after the configured inactivity delay
+- can optionally request a desktop lock some time after the saver starts
+- launches the fullscreen renderer through the separate `eaststar-saver` binary
+- leaves GNOME's own lock timing alone
 
-Running the app starts a fullscreen animated starfield placeholder.
+At the moment, the idle watcher is active while the preferences app is running. Autostart/background packaging is still a separate next step.
 
-- `Esc` exits the demo
-- `L` triggers the current lock placeholder in the terminal output
+## Current Controls
 
-This is not a real screensaver yet. It is the first visible stepping stone toward one.
+- `Activation delay` is configured directly in seconds
+- `Lock screen after saver starts` is optional and also configured in seconds
+- `Preview Saver` launches the fullscreen renderer immediately without forcing a lock
+
+The saver visual is intentionally dark and low-density to reduce static bright-pixel wear on OLED-like panels. The brightest area drifts over time so the screen center is not stressed continuously.
+
+## GNOME Integration Goal
+
+The intended GNOME behavior is:
+
+- `eastStar` has its own saver inactivity delay
+- when that delay is reached, `eastStar` shows the fullscreen visual instead of a plain blank screen
+- GNOME's own automatic lock settings still decide whether and when the session locks afterward
+
+So the saver and the lock policy are separate on purpose.
 
 ## Planned Milestones
 
-1. Define the runtime architecture and interfaces.
-2. Add a minimal app shell that can start, log, and exit cleanly.
-3. Implement GNOME-focused idle detection.
-4. Implement fullscreen visual mode on Wayland.
-5. Integrate session locking.
-6. Add multi-monitor handling.
-7. Add KDE support.
+1. Tighten GNOME inactivity behavior against real desktop blanking settings.
+2. Add a richer settings panel and proper effect selection UI.
+3. Add auto-start / background-run packaging for GNOME sessions.
+4. Add multi-monitor handling.
+5. Add KDE support.
 
 ## Notes
 
-Rust tooling is not installed on this host yet, so this is a manually scaffolded Cargo project.
+The project is scaffolded and buildable locally with Cargo.

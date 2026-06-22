@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=eastStar
+Comment=GNOME-first Wayland screensaver preferences
+Exec=eaststar
+Icon=com.ppmuzyk.eaststar
+Terminal=false
+Categories=Settings;Utility;
+StartupNotify=true
+StartupWMClass=com.ppmuzyk.eaststar
