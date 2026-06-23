@@ -94,3 +94,26 @@ Linux (GNOME/Wayland): download a package from Releases, install it, then launch
 ```
 
 Until those packages exist, the source install flow above is the supported path.
+
+## Release Packages
+
+Release builds are provided as compressed tarballs from the [GitHub Releases](https://github.com/ppmuzyk/eastStar/releases) page.
+
+### Download and install
+
+```bash
+# Download the latest x86_64 tarball
+curl -LO https://github.com/ppmuzyk/eastStar/releases/latest/download/eastStar-0.1.0-x86_64-unknown-linux-gnu.tar.gz
+
+# Extract and install
+tar xzf eastStar-0.1.0-x86_64-unknown-linux-gnu.tar.gz
+cd eastStar-0.1.0-x86_64-unknown-linux-gnu
+./install.sh
+gtk-launch com.ppmuzyk.eaststar
+```
+
+Bundled install includes:
+
+- `eaststar` and `eaststar-saver` binaries
+- GNOME desktop entry and icon
+- MIT license

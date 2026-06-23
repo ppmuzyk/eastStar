@@ -97,23 +97,41 @@ Until those packages exist, the source install flow above is the supported path.
 
 ## Release Packages
 
-Release builds are provided as compressed tarballs from the [GitHub Releases](https://github.com/ppmuzyk/eastStar/releases) page.
+Release builds are distributed in three formats:
 
-### Download and install
+| Format | File |
+|--------|------|
+| RPM (Fedora/RHEL) | `eaststar-0.1.0-1.x86_64.rpm` |
+| DEB (Debian/Ubuntu) | `eaststar_0.1.0-1_amd64.deb` |
+| Tarball (any Linux) | `eaststar-0.1.0-x86_64-unknown-linux-gnu.tar.gz` |
+
+Download from the [GitHub Releases](https://github.com/ppmuzyk/eastStar/releases) page.
+
+### RPM (Fedora, RHEL, CentOS Stream)
 
 ```bash
-# Download the latest x86_64 tarball
-curl -LO https://github.com/ppmuzyk/eastStar/releases/latest/download/eastStar-0.1.0-x86_64-unknown-linux-gnu.tar.gz
+sudo rpm -i eaststar-0.1.0-1.x86_64.rpm
+gtk-launch com.ppmuzyk.eaststar
+```
 
-# Extract and install
-tar xzf eastStar-0.1.0-x86_64-unknown-linux-gnu.tar.gz
-cd eastStar-0.1.0-x86_64-unknown-linux-gnu
+### DEB (Debian, Ubuntu, Pop!_OS)
+
+```bash
+sudo dpkg -i eaststar_0.1.0-1_amd64.deb
+gtk-launch com.ppmuzyk.eaststar
+```
+
+### Tarball (any Linux)
+
+```bash
+tar xzf eaststar-0.1.0-x86_64-unknown-linux-gnu.tar.gz
+cd eaststar-0.1.0-x86_64-unknown-linux-gnu
 ./install.sh
 gtk-launch com.ppmuzyk.eaststar
 ```
 
-Bundled install includes:
+All formats include:
 
-- `eaststar` and `eaststar-saver` binaries
-- GNOME desktop entry and icon
-- MIT license
+- `eaststar` and `eaststar-saver` (release-optimized binaries)
+- GNOME desktop entry (`com.ppmuzyk.eaststar.desktop`)
+- MIT license and documentation
