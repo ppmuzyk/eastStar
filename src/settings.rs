@@ -11,15 +11,17 @@ const DEFAULT_LOCK_AFTER_SECONDS: u64 = 0;
 pub enum VisualEffect {
     NebulaFlight,
     Pipes,
+    Plasma,
 }
 
 impl VisualEffect {
-    pub const ALL: [Self; 2] = [Self::NebulaFlight, Self::Pipes];
+    pub const ALL: [Self; 3] = [Self::NebulaFlight, Self::Pipes, Self::Plasma];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::NebulaFlight => "Nebula Flight",
             Self::Pipes => "Pipes",
+            Self::Plasma => "Fractal Plasma",
         }
     }
 
@@ -27,6 +29,7 @@ impl VisualEffect {
         match value.trim() {
             "nebula-flight" => Some(Self::NebulaFlight),
             "pipes" | "warp-drive" | "storm-front" => Some(Self::Pipes),
+            "plasma" | "fractal-plasma" => Some(Self::Plasma),
             _ => None,
         }
     }
@@ -35,6 +38,7 @@ impl VisualEffect {
         match self {
             Self::NebulaFlight => "nebula-flight",
             Self::Pipes => "pipes",
+            Self::Plasma => "plasma",
         }
     }
 }

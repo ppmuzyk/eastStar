@@ -32,7 +32,7 @@ At the moment, the idle watcher is active while the preferences app is running. 
 
 - `Activation delay` is configured directly in seconds
 - `Lock screen after saver starts` is optional and also configured in seconds
-- `Visual effect` currently lets you switch between `Nebula Flight` and `Pipes`
+- `Visual effect` currently lets you switch between `Nebula Flight`, `Pipes`, and `Fractal Plasma`
 - `Preview Saver` launches the fullscreen renderer immediately without forcing a lock
 
 The saver visual is intentionally dark and low-density to reduce static bright-pixel wear on OLED-like panels. The brightest area drifts over time so the screen center is not stressed continuously.
