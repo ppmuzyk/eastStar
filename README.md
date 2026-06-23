@@ -47,13 +47,16 @@ The intended GNOME behavior is:
 
 So the saver and the lock policy are separate on purpose.
 
+## Completed Milestones
+
+1. **Tighten GNOME inactivity behavior** — Uses Mutter idle monitor with configurable saver delay and optional screen lock.
+2. **Settings panel and effect selection UI** — GTK4 preferences app with delay/lock controls, visual effect picker (Nebula Flight / Pipes / Fractal Plasma), and preview.
+
 ## Planned Milestones
 
-1. Tighten GNOME inactivity behavior against real desktop blanking settings.
-2. Add a richer settings panel and proper effect selection UI.
-3. Add auto-start / background-run packaging for GNOME sessions.
-4. Add multi-monitor handling.
-5. Add KDE support.
+1. Add auto-start / background-run packaging for GNOME sessions (systemd user unit or XDG autostart).
+2. Add multi-monitor handling.
+3. Add KDE support.
 
 ## Installation
 
