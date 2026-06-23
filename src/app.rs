@@ -434,7 +434,7 @@ impl App {
             text,
         );
         draw_text(
-            "Only one effect is available right now.",
+            "Nebula Flight and Pipes are available right now.",
             layout.effect_card.x + 24.0,
             layout.effect_card.y + 210.0,
             20.0,

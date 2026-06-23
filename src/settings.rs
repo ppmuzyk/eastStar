@@ -10,26 +10,23 @@ const DEFAULT_LOCK_AFTER_SECONDS: u64 = 0;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VisualEffect {
     NebulaFlight,
-    WarpDrive,
-    StormFront,
+    Pipes,
 }
 
 impl VisualEffect {
-    pub const ALL: [Self; 3] = [Self::NebulaFlight, Self::WarpDrive, Self::StormFront];
+    pub const ALL: [Self; 2] = [Self::NebulaFlight, Self::Pipes];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::NebulaFlight => "Nebula Flight",
-            Self::WarpDrive => "Warp Drive",
-            Self::StormFront => "Storm Front",
+            Self::Pipes => "Pipes",
         }
     }
 
     pub fn parse(value: &str) -> Option<Self> {
         match value.trim() {
             "nebula-flight" => Some(Self::NebulaFlight),
-            "warp-drive" => Some(Self::WarpDrive),
-            "storm-front" => Some(Self::StormFront),
+            "pipes" | "warp-drive" | "storm-front" => Some(Self::Pipes),
             _ => None,
         }
     }
@@ -37,8 +34,7 @@ impl VisualEffect {
     pub fn config_value(self) -> &'static str {
         match self {
             Self::NebulaFlight => "nebula-flight",
-            Self::WarpDrive => "warp-drive",
-            Self::StormFront => "storm-front",
+            Self::Pipes => "pipes",
         }
     }
 }

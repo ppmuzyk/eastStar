@@ -15,9 +15,11 @@ name = "eaststar-saver"
 path = "src/bin/eaststar-saver.rs"
 
 [dependencies]
+glam = "0.27"
 gtk = { package = "gtk4", version = "0.10" }
 image = { version = "0.24.9", default-features = false, features = ["jpeg", "png"] }
 macroquad = "0.4.14"
+rand = "0.8"
 
 [build-dependencies]
 image = { version = "0.24.9", default-features = false, features = ["png"] }

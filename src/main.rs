@@ -285,12 +285,11 @@ fn build_ui(app: &Application) {
         let status_label = status_label.clone();
         effect_combo.connect_changed(move |combo| {
             let mut next = settings.borrow().clone();
-            next.visual_effect = match combo.active_id().as_deref() {
-                Some("nebula-flight") => VisualEffect::NebulaFlight,
-                Some("warp-drive") => VisualEffect::WarpDrive,
-                Some("storm-front") => VisualEffect::StormFront,
-                Some(_) | None => VisualEffect::NebulaFlight,
-            };
+            next.visual_effect = combo
+                .active_id()
+                .as_deref()
+                .and_then(VisualEffect::parse)
+                .unwrap_or(VisualEffect::NebulaFlight);
             apply_settings_update(next, &settings, &status_label);
         });
     }
