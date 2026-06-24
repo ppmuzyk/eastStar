@@ -19,27 +19,43 @@ mkdir -p dist
 rm -rf dist/staging
 mkdir -p dist/staging
 
-# Build RPM
+# === Build RPM with rpmbuild ===
 echo "=== Building RPM ==="
 RPM_NAME="eaststar-${VERSION}-1.${ARCH}"
-RPM_ROOT="dist/staging/rpm/${RPM_NAME}"
-mkdir -p "${RPM_ROOT}/usr/local/bin"
-mkdir -p "${RPM_ROOT}/usr/share/applications"
-mkdir -p "${RPM_ROOT}/usr/share/icons/hicolor/128x128/apps"
-mkdir -p "${RPM_ROOT}/usr/share/icons/hicolor/scalable/apps"
-mkdir -p "${RPM_ROOT}/usr/share/doc/eaststar"
-mkdir -p "${RPM_ROOT}/usr/share/eaststar/assets"
+RPM_BUILD_ROOT="$(pwd)/dist/staging/rpm-build"
+RPM_INSTALL_ROOT="${RPM_BUILD_ROOT}"
 
-cp "$BIN_DIR/eaststar" "${RPM_ROOT}/usr/local/bin/"
-cp "$BIN_DIR/eaststar-saver" "${RPM_ROOT}/usr/local/bin/"
-cp "$BIN_DIR/eaststar-daemon" "${RPM_ROOT}/usr/local/bin/"
-cp "$ASSETS_DIR/nebula2.png" "${RPM_ROOT}/usr/share/eaststar/assets/" 2>/dev/null || true
-cp LICENSE "${RPM_ROOT}/usr/share/doc/eaststar/"
-cp README.md "${RPM_ROOT}/usr/share/doc/eaststar/"
+rm -rf "${RPM_BUILD_ROOT}"
+mkdir -p "${RPM_INSTALL_ROOT}/usr/local/bin"
+mkdir -p "${RPM_INSTALL_ROOT}/usr/share/applications"
+mkdir -p "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/128x128/apps"
+mkdir -p "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/scalable/apps"
+mkdir -p "${RPM_INSTALL_ROOT}/usr/share/doc/eaststar"
+mkdir -p "${RPM_INSTALL_ROOT}/usr/share/eaststar/assets"
+mkdir -p "${RPM_INSTALL_ROOT}/usr/lib/systemd/user"
+
+cp "$BIN_DIR/eaststar" "${RPM_INSTALL_ROOT}/usr/local/bin/"
+cp "$BIN_DIR/eaststar-saver" "${RPM_INSTALL_ROOT}/usr/local/bin/"
+cp "$BIN_DIR/eaststar-daemon" "${RPM_INSTALL_ROOT}/usr/local/bin/"
+cp "$ASSETS_DIR/nebula2.png" "${RPM_INSTALL_ROOT}/usr/share/eaststar/assets/" 2>/dev/null || true
+cp LICENSE "${RPM_INSTALL_ROOT}/usr/share/doc/eaststar/"
+cp README.md "${RPM_INSTALL_ROOT}/usr/share/doc/eaststar/"
+
+# Desktop entry
+cat > "${RPM_INSTALL_ROOT}/usr/share/applications/com.ppmuzyk.eaststar.desktop" << 'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=eastStar
+Comment=GNOME screensaver visualizer
+Icon=com.ppmuzyk.eaststar
+Exec=eaststar
+Terminal=false
+Categories=GNOME;GTK;Settings;
+StartupNotify=true
+DESKTOP
 
 # systemd user service
-mkdir -p "${RPM_ROOT}/usr/lib/systemd/user"
-cat > "${RPM_ROOT}/usr/lib/systemd/user/eaststar.service" << 'SERVICEUNIT'
+cat > "${RPM_INSTALL_ROOT}/usr/lib/systemd/user/eaststar.service" << 'SERVICEUNIT'
 [Unit]
 Description=eastStar background idle monitor and screensaver launcher
 After=graphical-session.target
@@ -55,8 +71,84 @@ RestartSec=5
 WantedBy=graphical-session.target
 SERVICEUNIT
 
-# Desktop entry (GNOME standard location for packages)
-cat > "${RPM_ROOT}/usr/share/applications/com.ppmuzyk.eaststar.desktop" << 'DESKTOP'
+# Generate icon
+if command -v convert &>/dev/null && [ -f "$ASSETS_DIR/nebula2.png" ]; then
+    convert "$ASSETS_DIR/nebula2.png" -resize 128x128 \
+        "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png" 2>/dev/null || true
+    cp "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png" \
+       "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/scalable/apps/com.ppmuzyk.eaststar.png" 2>/dev/null || true
+fi
+
+# Create spec file
+SPEC_DIR="dist/staging/rpm-spec"
+rm -rf "${SPEC_DIR}"
+mkdir -p "${SPEC_DIR}"
+
+cat > "${SPEC_DIR}/eaststar.spec" << SPECEOF
+Name:           eaststar
+Version:        ${VERSION}
+Release:        1%{?dist}
+Summary:        GNOME-first Wayland screensaver visualizer
+License:        MIT
+URL:            https://github.com/ppmuzyk/eastStar
+BuildArch:      ${ARCH}
+
+%description
+eastStar is a GNOME-first, Wayland-first screensaver application.
+Includes Nebula Flight, Pipes (3D), and Fractal Plasma effects.
+Burn-in safe with OLED-friendly dark mode.
+
+%files
+/usr/local/bin/eaststar
+/usr/local/bin/eaststar-saver
+/usr/local/bin/eaststar-daemon
+/usr/share/applications/com.ppmuzyk.eaststar.desktop
+/usr/share/eaststar/assets/nebula2.png
+/usr/share/doc/eaststar/LICENSE
+/usr/share/doc/eaststar/README.md
+/usr/lib/systemd/user/eaststar.service
+SPECEOF
+
+# Add icon files if they exist
+if [ -f "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png" ]; then
+    cat >> "${SPEC_DIR}/eaststar.spec" << SPECEOF
+/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png
+/usr/share/icons/hicolor/scalable/apps/com.ppmuzyk.eaststar.png
+SPECEOF
+fi
+
+# Build with rpmbuild
+RPM_OUTPUT_DIR="$(pwd)/dist"
+rpmbuild -bb \
+    --buildroot "${RPM_INSTALL_ROOT}" \
+    --define "_rpmdir ${RPM_OUTPUT_DIR}" \
+    --define "_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
+    "${SPEC_DIR}/eaststar.spec"
+
+echo "RPM: $(ls -lh "${RPM_OUTPUT_DIR}/eaststar-${VERSION}-1.${ARCH}.rpm" | awk '{print $5}')"
+
+# === Build DEB manually ===
+echo ""
+echo "=== Building DEB ==="
+DEB_ROOT="dist/staging/deb/eaststar_${VERSION}-1_amd64"
+DEB_CONTROL="${DEB_ROOT}/DEBIAN"
+mkdir -p "${DEB_CONTROL}"
+mkdir -p "${DEB_ROOT}/usr/local/bin"
+mkdir -p "${DEB_ROOT}/usr/share/applications"
+mkdir -p "${DEB_ROOT}/usr/share/icons/hicolor/128x128/apps"
+mkdir -p "${DEB_ROOT}/usr/share/doc/eaststar"
+mkdir -p "${DEB_ROOT}/usr/share/eaststar/assets"
+mkdir -p "${DEB_ROOT}/usr/lib/systemd/user"
+
+cp "$BIN_DIR/eaststar" "${DEB_ROOT}/usr/local/bin/"
+cp "$BIN_DIR/eaststar-saver" "${DEB_ROOT}/usr/local/bin/"
+cp "$BIN_DIR/eaststar-daemon" "${DEB_ROOT}/usr/local/bin/"
+cp "$ASSETS_DIR/nebula2.png" "${DEB_ROOT}/usr/share/eaststar/assets/" 2>/dev/null || true
+cp LICENSE "${DEB_ROOT}/usr/share/doc/eaststar/copyright"
+cp README.md "${DEB_ROOT}/usr/share/doc/eaststar/"
+
+# Desktop entry for DEB
+cat > "${DEB_ROOT}/usr/share/applications/com.ppmuzyk.eaststar.desktop" << 'DESKTOP'
 [Desktop Entry]
 Type=Application
 Name=eastStar
@@ -68,114 +160,7 @@ Categories=GNOME;GTK;Settings;
 StartupNotify=true
 DESKTOP
 
-# Generate icon (will be filled by install.sh logic, but put a PNG placeholder)
-# For the package, copy the asset as icon
-if command -v convert &>/dev/null && [ -f "$ASSETS_DIR/nebula2.png" ]; then
-    convert "$ASSETS_DIR/nebula2.png" -resize 128x128 "${RPM_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png" 2>/dev/null || true
-    cp "${RPM_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png" \
-       "${RPM_ROOT}/usr/share/icons/hicolor/scalable/apps/com.ppmuzyk.eaststar.png" 2>/dev/null || true
-fi
-
-pushd dist/staging/rpm > /dev/null
-rpmbuild -bb --buildroot "$(pwd)/${RPM_NAME}" \
-    --define "_rpmdir $(pwd)/../../" \
-    --define "_sourcedir $(pwd)" \
-    --define "_builddir $(pwd)" \
-    --define "_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
-    "${RPM_NAME}.spec" 2>/dev/null && echo "RPM built" || {
-    # rpmbuild with spec from scratch using the new directory layout
-    rpmbuild -bb --buildroot "$(pwd)/${RPM_NAME}" \
-        --define "_rpmdir $(pwd)/../../" \
-        --define "__spec_build_cmd cat" \
-        "/dev/null" 2>/dev/null || true
-}
-popd > /dev/null
-
-# Fallback: build RPM manually with cpio
-echo "Building RPM manually..."
-RPM_STAGE="dist/staging/rpm-stage"
-rm -rf "$RPM_STAGE"
-mkdir -p "$RPM_STAGE"
-
-# Copy the full tree
-cp -a "${RPM_ROOT}"/* "$RPM_STAGE/"
-
-# Create RPM payload
-cd "$RPM_STAGE"
-RPM_PKG="../../eaststar-${VERSION}-1.${ARCH}.rpm"
-rm -f "$RPM_PKG"
-
-# Build cpio payload
-find . -not -name '*.spec' | cpio --quiet -o -H newc | gzip -9 > /tmp/eaststar-payload.cpio.gz
-
-# Generate RPM header
-cat > /tmp/eaststar-hdrs <<HEADERS
-%__NAME__ eaststar
-%__VERSION__ ${VERSION}
-%__RELEASE__ 1
-%__ARCH__ ${ARCH}
-%__SUMMARY__ GNOME-first Wayland screensaver visualizer
-%__DESCRIPTION__ eastStar is a GNOME-first, Wayland-first screensaver application.\\
-Includes Nebula Flight, Pipes (3D), and Fractal Plasma effects.\\
-Burn-in safe with OLED-friendly dark mode.
-%__LICENSE__ MIT
-%__URL__ https://github.com/ppmuzyk/eastStar
-%__PACKAGER__ Przemek Muzyk <przemyslaw.muzyk@gmail.com>
-HEADERS
-
-# Build a simple RPM with a lead + header structures + payload
-# Using rpmbuild for the proper structure
-{
-    printf '\xed\xab\xee\xdb'  # magic
-    printf '\x03\x00'          # major 3, minor 0
-    printf '\x00\x00'          # type 0 (binary)
-    printf '\x00\x01'          # arch 1 (x86)
-    # name (66 bytes)
-    printf 'eaststar%-58s' ''
-    # os 1 (Linux)
-    printf '\x00\x01'
-    # signature type 5
-    printf '\x00\x05'
-    # reserved (16 bytes)
-    printf '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-} > "$RPM_PKG"
-
-# Simpler approach: just use cpio + gzip with metadata
-PAYLOAD_SIZE=$(stat -c%s /tmp/eaststar-payload.cpio.gz)
-cat /tmp/eaststar-payload.cpio.gz >> "$RPM_PKG"
-
-echo "RPM: $(ls -lh "$RPM_PKG" | awk '{print $5}')"
-cd /home/ppmuzyk/Projects/eastStar
-
-# Build DEB manually (since dpkg-deb is not available)
-echo ""
-echo "=== Building DEB ==="
-DEB_ROOT="dist/staging/deb/eaststar_${VERSION}-1_amd64"
-DEB_CONTROL="${DEB_ROOT}/DEBIAN"
-mkdir -p "${DEB_CONTROL}"
-mkdir -p "${DEB_ROOT}/usr/local/bin"
-mkdir -p "${DEB_ROOT}/usr/share/applications"
-mkdir -p "${DEB_ROOT}/usr/share/icons/hicolor/128x128/apps"
-mkdir -p "${DEB_ROOT}/usr/share/doc/eaststar"
-mkdir -p "${DEB_ROOT}/usr/share/eaststar/assets"
-
-cp "$BIN_DIR/eaststar" "${DEB_ROOT}/usr/local/bin/"
-cp "$BIN_DIR/eaststar-saver" "${DEB_ROOT}/usr/local/bin/"
-cp "$BIN_DIR/eaststar-daemon" "${DEB_ROOT}/usr/local/bin/"
-cp "$ASSETS_DIR/nebula2.png" "${DEB_ROOT}/usr/share/eaststar/assets/" 2>/dev/null || true
-cp LICENSE "${DEB_ROOT}/usr/share/doc/eaststar/copyright"
-cp README.md "${DEB_ROOT}/usr/share/doc/eaststar/"
-cp "${RPM_ROOT}/usr/share/applications/com.ppmuzyk.eaststar.desktop" \
-   "${DEB_ROOT}/usr/share/applications/"
-if [ -f "${RPM_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png" ]; then
-    cp "${RPM_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png" \
-       "${DEB_ROOT}/usr/share/icons/hicolor/128x128/apps/"
-fi
-
-INSTALLED_SIZE=$(du -sk "${DEB_ROOT}" | cut -f1)
-
-# systemd user service
-mkdir -p "${DEB_ROOT}/usr/lib/systemd/user"
+# systemd user service for DEB
 cat > "${DEB_ROOT}/usr/lib/systemd/user/eaststar.service" << 'SERVICEUNIT'
 [Unit]
 Description=eastStar background idle monitor and screensaver launcher
@@ -191,6 +176,14 @@ RestartSec=5
 [Install]
 WantedBy=graphical-session.target
 SERVICEUNIT
+
+# Icon for DEB
+if [ -f "$ASSETS_DIR/nebula2.png" ] && command -v convert &>/dev/null; then
+    convert "$ASSETS_DIR/nebula2.png" -resize 128x128 \
+        "${DEB_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png" 2>/dev/null || true
+fi
+
+INSTALLED_SIZE=$(du -sk "${DEB_ROOT}" | cut -f1)
 
 cat > "${DEB_CONTROL}/control" << CONTROL
 Package: eaststar
@@ -226,7 +219,7 @@ ar r "$DEB_PKG" \
 echo "DEB: $(ls -lh "$DEB_PKG" | awk '{print $5}')"
 
 # Clean up tmp files
-rm -f /tmp/eaststar-payload.cpio.gz /tmp/eaststar-hdrs /tmp/eaststar-control.tar.gz /tmp/eaststar-data.tar.gz
+rm -f /tmp/eaststar-control.tar.gz /tmp/eaststar-data.tar.gz
 
 echo ""
 echo "=== Post-install notes ==="
