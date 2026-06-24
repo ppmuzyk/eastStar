@@ -71,6 +71,12 @@ RestartSec=5
 WantedBy=graphical-session.target
 SERVICEUNIT
 
+# systemd user preset — enables the service by default for all users
+mkdir -p "${RPM_INSTALL_ROOT}/usr/lib/systemd/user-preset"
+cat > "${RPM_INSTALL_ROOT}/usr/lib/systemd/user-preset/80-eaststar.preset" << 'PRESET'
+enable eaststar.service
+PRESET
+
 # Generate icon
 if command -v convert &>/dev/null && [ -f "$ASSETS_DIR/nebula2.png" ]; then
     convert "$ASSETS_DIR/nebula2.png" -resize 128x128 \
@@ -107,6 +113,7 @@ Burn-in safe with OLED-friendly dark mode.
 /usr/share/doc/eaststar/LICENSE
 /usr/share/doc/eaststar/README.md
 /usr/lib/systemd/user/eaststar.service
+/usr/lib/systemd/user-preset/80-eaststar.preset
 SPECEOF
 
 # Add icon files if they exist
@@ -187,6 +194,12 @@ RestartSec=5
 [Install]
 WantedBy=graphical-session.target
 SERVICEUNIT
+
+# systemd user preset — enables the service by default for all users
+mkdir -p "${DEB_ROOT}/usr/lib/systemd/user-preset"
+cat > "${DEB_ROOT}/usr/lib/systemd/user-preset/80-eaststar.preset" << 'PRESET'
+enable eaststar.service
+PRESET
 
 # Icon for DEB
 if [ -f "$ASSETS_DIR/nebula2.png" ] && command -v convert &>/dev/null; then
