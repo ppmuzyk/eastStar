@@ -31,6 +31,13 @@
   <url type="homepage">https://github.com/ppmuzyk/eastStar</url>
 
   <releases>
+    <release version="0.2.1" date="2026-06-24">
+      <description>
+        <p>Bug fix: mouse cursor is now hidden during fullscreen saver.</p>
+        <p>Added AppStream metainfo for proper GNOME Software integration with
+        icon, description, and screenshots.</p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-06-24">
       <description>
         <p>Added background daemon with systemd user service. Daemon auto-starts
