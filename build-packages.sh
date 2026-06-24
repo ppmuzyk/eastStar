@@ -76,13 +76,15 @@ mkdir -p "${RPM_INSTALL_ROOT}/usr/lib/systemd/user-preset"
 cat > "${RPM_INSTALL_ROOT}/usr/lib/systemd/user-preset/80-eaststar.preset" << 'PRESET'
 enable eaststar.service
 PRESET
-
-# Generate icon
-if command -v convert &>/dev/null && [ -f "$ASSETS_DIR/nebula2.png" ]; then
-    convert "$ASSETS_DIR/nebula2.png" -resize 128x128 \
-        "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png" 2>/dev/null || true
-    cp "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png" \
-       "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/scalable/apps/com.ppmuzyk.eaststar.png" 2>/dev/null || true
+# Install pre-generated icons (all sizes) for RPM
+if [ -d "$ASSETS_DIR/generated-icons/hicolor" ]; then
+    for size_dir in "$ASSETS_DIR/generated-icons/hicolor"/*; do
+        [ -d "$size_dir" ] || continue
+        size_name="$(basename "$size_dir")"
+        mkdir -p "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/${size_name}/apps"
+        cp "$size_dir/apps/com.ppmuzyk.eaststar.png" \
+           "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/${size_name}/apps/" 2>/dev/null || true
+    done
 fi
 
 # Create spec file
@@ -116,13 +118,14 @@ Burn-in safe with OLED-friendly dark mode.
 /usr/lib/systemd/user-preset/80-eaststar.preset
 SPECEOF
 
-# Add icon files if they exist
-if [ -f "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png" ]; then
-    cat >> "${SPEC_DIR}/eaststar.spec" << SPECEOF
-/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png
-/usr/share/icons/hicolor/scalable/apps/com.ppmuzyk.eaststar.png
-SPECEOF
-fi
+# Add all icon sizes to %files
+for size_dir in "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor"/*; do
+    [ -d "$size_dir" ] || continue
+    size_name="$(basename "$size_dir")"
+    if [ -f "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/${size_name}/apps/com.ppmuzyk.eaststar.png" ]; then
+        echo "/usr/share/icons/hicolor/${size_name}/apps/com.ppmuzyk.eaststar.png" >> "${SPEC_DIR}/eaststar.spec"
+    fi
+done
 
 # Add post-install message to spec
 cat >> "${SPEC_DIR}/eaststar.spec" << 'RPMSCRIPT'
@@ -212,10 +215,14 @@ cat > "${DEB_ROOT}/usr/lib/systemd/user-preset/80-eaststar.preset" << 'PRESET'
 enable eaststar.service
 PRESET
 
-# Icon for DEB
-if [ -f "$ASSETS_DIR/nebula2.png" ] && command -v convert &>/dev/null; then
-    convert "$ASSETS_DIR/nebula2.png" -resize 128x128 \
-        "${DEB_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.png" 2>/dev/null || true
+# Install pre-generated icons (all sizes) for DEB
+if [ -d "$ASSETS_DIR/generated-icons/hicolor" ]; then
+    for size_dir in "$ASSETS_DIR/generated-icons/hicolor"/*; do
+        [ -d "$size_dir" ] || continue
+        size_name="$(basename "$size_dir")"
+        mkdir -p "${DEB_ROOT}/usr/share/icons/hicolor/${size_name}/apps"
+        cp "$size_dir/apps/com.ppmuzyk.eaststar.png"            "${DEB_ROOT}/usr/share/icons/hicolor/${size_name}/apps/" 2>/dev/null || true
+    done
 fi
 
 INSTALLED_SIZE=$(du -sk "${DEB_ROOT}" | cut -f1)
