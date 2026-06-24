@@ -1,6 +1,6 @@
 use eaststar::saver::SaverApp;
 use macroquad::miniquad::conf::{LinuxBackend, Platform};
-use macroquad::prelude::{clear_background, next_frame, BLACK};
+use macroquad::prelude::{clear_background, next_frame, show_mouse, BLACK};
 use macroquad::window::{request_new_screen_size, set_fullscreen, Conf};
 
 include!(concat!(env!("OUT_DIR"), "/app_icon.rs"));
@@ -27,6 +27,7 @@ fn window_conf() -> Conf {
 async fn main() {
     request_new_screen_size(2560.0, 1440.0);
     set_fullscreen(true);
+    show_mouse(false);
 
     let mut app = SaverApp::new();
     app.prepare();
