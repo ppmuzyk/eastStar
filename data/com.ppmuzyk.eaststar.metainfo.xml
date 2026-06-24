@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.ppmuzyk.eaststar</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>eastStar</name>
+  <summary>GNOME-first Wayland screensaver visualizer</summary>
+
+  <description>
+    <p>
+      eastStar replaces the blank screen experience with animated fullscreen
+      visuals on GNOME. It watches inactivity through Mutter's idle monitor and
+      launches a saver when your configured delay is reached.
+    </p>
+    <p>
+      Includes three visual effects: Nebula Flight, Pipes (3D classic), and
+      Fractal Plasma. All visuals are burn-in safe with OLED-friendly dark mode
+      and drifting bright areas.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">com.ppmuzyk.eaststar.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/ppmuzyk/eastStar/main/assets/nebula2.png</image>
+      <caption>Nebula Flight effect</caption>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/ppmuzyk/eastStar</url>
+
+  <releases>
+    <release version="0.2.0" date="2026-06-24">
+      <description>
+        <p>Added background daemon with systemd user service. Daemon auto-starts
+        after installation — no relogin required. RPM packages now built with
+        rpmbuild for proper Software Center compatibility.</p>
+      </description>
+    </release>
+  </releases>
+
+  <categories>
+    <category>Settings</category>
+  </categories>
+
+  <icon type="stock">com.ppmuzyk.eaststar</icon>
+
+  <recommends>
+    <control>session</control>
+  </recommends>
+</component>

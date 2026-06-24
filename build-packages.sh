@@ -87,6 +87,10 @@ if [ -d "$ASSETS_DIR/generated-icons/hicolor" ]; then
     done
 fi
 
+# AppStream metainfo for GNOME Software
+mkdir -p "${RPM_INSTALL_ROOT}/usr/share/metainfo"
+cp data/com.ppmuzyk.eaststar.metainfo.xml "${RPM_INSTALL_ROOT}/usr/share/metainfo/"
+
 # Create spec file
 SPEC_DIR="dist/staging/rpm-spec"
 rm -rf "${SPEC_DIR}"
@@ -111,10 +115,12 @@ Burn-in safe with OLED-friendly dark mode.
 /usr/local/bin/eaststar-saver
 /usr/local/bin/eaststar-daemon
 /usr/share/applications/com.ppmuzyk.eaststar.desktop
+/usr/share/metainfo/com.ppmuzyk.eaststar.metainfo.xml
 /usr/share/eaststar/assets/nebula2.png
 /usr/share/doc/eaststar/LICENSE
 /usr/share/doc/eaststar/README.md
 /usr/lib/systemd/user/eaststar.service
+/usr/lib/systemd/user-preset/80-eaststar.preset
 /usr/lib/systemd/user-preset/80-eaststar.preset
 SPECEOF
 
@@ -176,6 +182,8 @@ cp "$BIN_DIR/eaststar" "${DEB_ROOT}/usr/local/bin/"
 cp "$BIN_DIR/eaststar-saver" "${DEB_ROOT}/usr/local/bin/"
 cp "$BIN_DIR/eaststar-daemon" "${DEB_ROOT}/usr/local/bin/"
 cp "$ASSETS_DIR/nebula2.png" "${DEB_ROOT}/usr/share/eaststar/assets/" 2>/dev/null || true
+mkdir -p "${DEB_ROOT}/usr/share/metainfo"
+cp data/com.ppmuzyk.eaststar.metainfo.xml "${DEB_ROOT}/usr/share/metainfo/"
 cp LICENSE "${DEB_ROOT}/usr/share/doc/eaststar/copyright"
 cp README.md "${DEB_ROOT}/usr/share/doc/eaststar/"
 
