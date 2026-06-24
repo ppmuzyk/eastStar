@@ -117,6 +117,17 @@ if [ -f "${RPM_INSTALL_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.ea
 SPECEOF
 fi
 
+# Add post-install message to spec
+cat >> "${SPEC_DIR}/eaststar.spec" << SPECEOF
+%post
+echo ""
+echo "eastStar: background daemon installed."
+echo "Enable it for your user account:"
+echo "  systemctl --user daemon-reload"
+echo "  systemctl --user enable --now eaststar"
+echo ""
+SPECEOF
+
 # Build with rpmbuild
 RPM_OUTPUT_DIR="$(pwd)/dist"
 rpmbuild -bb \
