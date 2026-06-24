@@ -1,54 +1,40 @@
 # eastStar
 
-`eastStar` is a GNOME-first, Wayland-first screensaver-style application written in Rust.
+`eastStar` is a GNOME-first, Wayland-first screensaver application written in Rust.
 
-## Product Direction
+## Features
 
-The first milestone is a local Linux app that:
+- Detects user inactivity on GNOME via Mutter's idle monitor
+- Fullscreen animated visuals: Nebula Flight, Pipes (3D), Fractal Plasma
+- OLED-safe dark visuals with drifting bright areas
+- Configurable activation delay and optional auto-lock
+- Background daemon runs automatically — no need to keep any window open
+- Packaged for RPM (Fedora/RHEL) and DEB (Debian/Ubuntu)
 
-- detects user inactivity on GNOME
-- shows a fullscreen visual experience
-- replaces blank-screen behavior with a saver visual
-- leaves actual session lock timing under GNOME system settings
-- works on a single monitor first
-- leaves room for future KDE and multi-monitor support
+## Quick Start
 
-## Current State
+Download the latest package from [GitHub Releases](https://github.com/ppmuzyk/eastStar/releases).
 
-This repository is now in an early controller-app phase with a background daemon.
+**Fedora/RHEL:**
+```bash
+sudo rpm -i eaststar-0.2.0-1.x86_64.rpm
+```
 
-Running the app opens a normal control panel window that:
+**Debian/Ubuntu:**
+```bash
+sudo dpkg -i eaststar_0.2.0-1_amd64.deb
+```
 
-- lets you configure the saver activation delay and visual effect
-- persists settings to `~/.config/eaststar/settings.conf`
-- provides a "Preview Saver" button for immediate fullscreen preview
+The daemon starts automatically after installation if you're currently logged in. Otherwise it starts on next login.
 
-The background daemon (`eaststar-daemon`) runs independently as a systemd user service:
-
-- polls GNOME idle time through Mutter's idle monitor once per second
-- launches the fullscreen saver (`eaststar-saver`) when idle reaches the configured delay
-- can optionally request a desktop lock after the saver has been active for a configurable time
-- automatically picks up settings changes from the preferences panel (reloads config each cycle)
-- leaves GNOME's own lock timing alone
-
-## Current Controls
-
-- `Activation delay` is configured directly in seconds
-- `Lock screen after saver starts` is optional and also configured in seconds
-- `Visual effect` currently lets you switch between `Nebula Flight`, `Pipes`, and `Fractal Plasma`
-- `Preview Saver` launches the fullscreen renderer immediately without forcing a lock
-
-The saver visual is intentionally dark and low-density to reduce static bright-pixel wear on OLED-like panels. The brightest area drifts over time so the screen center is not stressed continuously.
-
-## GNOME Integration Goal
-
-- `eastStar` has its own saver inactivity delay
-- when that delay is reached, `eastStar` shows the fullscreen visual instead of a plain blank screen
-- GNOME's own automatic lock settings still decide whether and when the session locks afterward
+Launch preferences to adjust settings:
+```bash
+gtk-launch com.ppmuzyk.eaststar
+```
 
 ## Architecture
 
-Three binaries:
+Three binaries, one purpose:
 
 | Binary | Role |
 |--------|------|
@@ -56,105 +42,62 @@ Three binaries:
 | `eaststar-daemon` | Background idle monitor (systemd user service) |
 | `eaststar-saver` | Fullscreen visual renderer |
 
-The daemon is the core runtime — it runs in the background, watches idle time, and spawns the saver when needed. The preferences panel is only needed when you want to change settings.
+The daemon runs as a background service, polls GNOME idle time every second, and spawns the saver when idle reaches your configured delay. The preferences panel is only needed when you want to change settings — it writes to `~/.config/eaststar/settings.conf` and the daemon picks up changes live.
 
-## Completed Milestones
-
-1. **Tighten GNOME inactivity behavior** — Uses Mutter idle monitor with configurable saver delay and optional screen lock.
-2. **Settings panel and effect selection UI** — GTK4 preferences app with delay/lock controls, visual effect picker (Nebula Flight / Pipes / Fractal Plasma), and preview.
-3. **Background daemon with systemd integration** — `eaststar-daemon` runs as a `systemd --user` service, monitors idle time independently of the preferences window, and auto-launches the saver.
-
-## Planned Milestones
-
-1. Add multi-monitor handling.
-2. Add KDE support.
-
-## Installation
-
-### Local GNOME Install
-
-For a user-local GNOME install from source:
-
-```bash
-./install.sh
+```
+Preferences panel ──writes──→ settings.conf ──reads──→ Daemon ──spawns──→ Saver
+                         (live reload)            (idle monitor)     (fullscreen)
 ```
 
-This installs:
+## Settings
 
-- `eaststar`, `eaststar-daemon`, and `eaststar-saver` into `~/.local/bin`
-- the desktop entry into `~/.local/share/applications`
-- the generated icon theme entries into `~/.local/share/icons/hicolor`
-- a systemd user service at `~/.config/systemd/user/eaststar.service`
+| Setting | Default | Range |
+|---------|---------|-------|
+| Activation delay | 180s (3 min) | 30–3600s |
+| Lock after saver | 0 (disabled) | 0–7200s |
+| Visual effect | Nebula Flight | Nebula Flight / Pipes / Fractal Plasma |
 
-The systemd service is enabled and started automatically. The daemon begins watching idle time immediately after login.
-
-Useful options:
-
-- `./install.sh --debug` installs the debug build instead of release
-- `./install.sh --prefix /some/prefix` installs into a custom prefix
-- `./install.sh --no-systemd` skips systemd service setup
-
-To remove the local install:
-
-```bash
-./uninstall.sh
-```
-
-### Managing the Daemon
+## Managing the Daemon
 
 ```bash
 systemctl --user status eaststar         # check if running
-systemctl --user stop eaststar           # stop the daemon
-systemctl --user start eaststar          # start the daemon
-systemctl --user restart eaststar        # restart after settings changes
-journalctl --user -u eaststar -f         # follow daemon logs
+systemctl --user stop eaststar           # temporarily stop
+systemctl --user start eaststar          # manually start
+systemctl --user restart eaststar        # restart (picks up binary updates)
+journalctl --user -u eaststar -f         # follow logs
 ```
 
 To disable automatic startup:
-
 ```bash
 systemctl --user disable eaststar
 ```
 
-### Release Packages
-
-Release builds are distributed in three formats:
-
-| Format | File |
-|--------|------|
-| RPM (Fedora/RHEL) | `eaststar-0.1.0-1.x86_64.rpm` |
-| DEB (Debian/Ubuntu) | `eaststar_0.1.0-1_amd64.deb` |
-| Tarball (any Linux) | `eaststar-0.1.0-x86_64-unknown-linux-gnu.tar.gz` |
-
-Download from the [GitHub Releases](https://github.com/ppmuzyk/eastStar/releases) page.
-
-#### RPM (Fedora, RHEL, CentOS Stream)
+## Building from Source
 
 ```bash
-sudo rpm -i eaststar-0.1.0-1.x86_64.rpm
-systemctl --user daemon-reload
-systemctl --user enable --now eaststar
-```
-
-#### DEB (Debian, Ubuntu, Pop!_OS)
-
-```bash
-sudo dpkg -i eaststar_0.1.0-1_amd64.deb
-systemctl --user daemon-reload
-systemctl --user enable --now eaststar
-```
-
-#### Tarball (any Linux)
-
-```bash
-tar xzf eaststar-0.1.0-x86_64-unknown-linux-gnu.tar.gz
-cd eaststar-0.1.0-x86_64-unknown-linux-gnu
+git clone https://github.com/ppmuzyk/eastStar.git
+cd eastStar
 ./install.sh
 ```
 
-All formats include:
+Options:
+- `--debug` — debug build
+- `--prefix /path` — custom install prefix
+- `--no-systemd` — skip systemd service setup
 
-- `eaststar`, `eaststar-daemon`, and `eaststar-saver` (release-optimized binaries)
-- GNOME desktop entry (`com.ppmuzyk.eaststar.desktop`)
-- systemd user service unit (`eaststar.service`)
-- MIT license and documentation
+To remove:
+```bash
+./uninstall.sh
+```
+
+## Building Release Packages
+
+```bash
+./build-packages.sh
+```
+
+Produces `dist/` with RPM, DEB, and tarball.
+
+## License
+
+MIT
