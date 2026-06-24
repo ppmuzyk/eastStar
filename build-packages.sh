@@ -125,15 +125,26 @@ SPECEOF
 fi
 
 # Add post-install message to spec
-cat >> "${SPEC_DIR}/eaststar.spec" << SPECEOF
+cat >> "${SPEC_DIR}/eaststar.spec" << 'RPMSCRIPT'
 %post
+# Try to start the daemon immediately for all currently logged-in users
+for uid in $(loginctl list-users --no-legend 2>/dev/null | awk '{print $1}'); do
+    if [ -d "/run/user/$uid" ] && [ -S "/run/user/$uid/bus" ]; then
+        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+            XDG_RUNTIME_DIR="/run/user/$uid" \
+            systemctl --user daemon-reload 2>/dev/null || true
+        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+            XDG_RUNTIME_DIR="/run/user/$uid" \
+            systemctl --user enable --now eaststar.service 2>/dev/null || true
+    fi
+done
+
 echo ""
 echo "eastStar: background daemon installed."
-echo "Enable it for your user account:"
-echo "  systemctl --user daemon-reload"
-echo "  systemctl --user enable --now eaststar"
+echo "If you are currently logged in, the daemon should already be running."
+echo "Otherwise it will start automatically on next login."
 echo ""
-SPECEOF
+RPMSCRIPT
 
 # Build with rpmbuild
 RPM_OUTPUT_DIR="$(pwd)/dist"
