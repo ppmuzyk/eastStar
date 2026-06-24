@@ -100,7 +100,7 @@ fn build_ui(app: &Application) {
     delay_help.add_css_class("flat");
     delay_help.add_css_class("section-help");
     delay_help.set_tooltip_text(Some(
-        "eastStar watches GNOME idle time while this preferences app is open. When this delay is reached, it launches the fullscreen saver window.",
+        "When the GNOME idle time reaches this delay, eastStar launches the fullscreen saver window. The background daemon must be running for automatic activation.",
     ));
     delay_label_box.append(&delay_label);
     delay_label_box.append(&delay_help);

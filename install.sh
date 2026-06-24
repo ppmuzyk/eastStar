@@ -5,6 +5,7 @@ APP_ID="com.ppmuzyk.eaststar"
 APP_NAME="eaststar"
 BUILD_MODE="release"
 PREFIX="${HOME}/.local"
+SYSTEMD_DIR="${HOME}/.config/systemd/user"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -16,9 +17,13 @@ while [[ $# -gt 0 ]]; do
       PREFIX="$2"
       shift 2
       ;;
+    --no-systemd)
+      NO_SYSTEMD=1
+      shift
+      ;;
     *)
       echo "Unknown argument: $1" >&2
-      echo "Usage: ./install.sh [--debug] [--prefix PATH]" >&2
+      echo "Usage: ./install.sh [--debug] [--prefix PATH] [--no-systemd]" >&2
       exit 1
       ;;
   esac
@@ -48,6 +53,7 @@ echo "Installing binaries into ${BIN_DIR}..."
 mkdir -p "${BIN_DIR}"
 install -m 0755 "${TARGET_DIR}/${APP_NAME}" "${BIN_DIR}/${APP_NAME}"
 install -m 0755 "${TARGET_DIR}/${APP_NAME}-saver" "${BIN_DIR}/${APP_NAME}-saver"
+install -m 0755 "${TARGET_DIR}/${APP_NAME}-daemon" "${BIN_DIR}/${APP_NAME}-daemon"
 
 echo "Installing desktop entry..."
 mkdir -p "${APP_DIR}"
@@ -73,6 +79,38 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
   gtk-update-icon-cache -f -t "${PREFIX}/share/icons/hicolor" >/dev/null 2>&1 || true
 fi
 
+# --- systemd user service ---
+if [[ -z "${NO_SYSTEMD:-}" ]] && command -v systemctl >/dev/null 2>&1; then
+  echo "Installing systemd user service..."
+  mkdir -p "${SYSTEMD_DIR}"
+
+  cat > "${SYSTEMD_DIR}/${APP_NAME}.service" << SERVICE
+[Unit]
+Description=eastStar background idle monitor and screensaver launcher
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=${BIN_DIR}/${APP_NAME}-daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
+SERVICE
+
+  systemctl --user daemon-reload
+  systemctl --user enable --now "${APP_NAME}.service"
+
+  echo "  systemd service enabled and started."
+  echo "  Manage with: systemctl --user {status,stop,start,restart} ${APP_NAME}"
+  echo "  Logs:        journalctl --user -u ${APP_NAME} -f"
+else
+  echo "Skipping systemd service (--no-systemd or systemctl not found)."
+  echo "Run 'eaststar-daemon' manually to start the background monitor."
+fi
+
 echo
 echo "Installed ${APP_NAME} to ${PREFIX}"
-echo "Launch with: gtk-launch ${APP_ID}"
+echo "Launch preferences with: gtk-launch ${APP_ID}"

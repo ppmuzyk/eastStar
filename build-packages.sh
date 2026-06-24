@@ -8,7 +8,7 @@ BIN_DIR="target/release"
 ASSETS_DIR="assets"
 
 # Ensure release binaries exist
-if [ ! -f "$BIN_DIR/eaststar" ] || [ ! -f "$BIN_DIR/eaststar-saver" ]; then
+if [ ! -f "$BIN_DIR/eaststar" ] || [ ! -f "$BIN_DIR/eaststar-saver" ] || [ ! -f "$BIN_DIR/eaststar-daemon" ]; then
     echo "Building release binaries..."
     cargo build --release --bins
 fi
@@ -32,9 +32,28 @@ mkdir -p "${RPM_ROOT}/usr/share/eaststar/assets"
 
 cp "$BIN_DIR/eaststar" "${RPM_ROOT}/usr/local/bin/"
 cp "$BIN_DIR/eaststar-saver" "${RPM_ROOT}/usr/local/bin/"
+cp "$BIN_DIR/eaststar-daemon" "${RPM_ROOT}/usr/local/bin/"
 cp "$ASSETS_DIR/nebula2.png" "${RPM_ROOT}/usr/share/eaststar/assets/" 2>/dev/null || true
 cp LICENSE "${RPM_ROOT}/usr/share/doc/eaststar/"
 cp README.md "${RPM_ROOT}/usr/share/doc/eaststar/"
+
+# systemd user service
+mkdir -p "${RPM_ROOT}/usr/lib/systemd/user"
+cat > "${RPM_ROOT}/usr/lib/systemd/user/eaststar.service" << 'SERVICEUNIT'
+[Unit]
+Description=eastStar background idle monitor and screensaver launcher
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/eaststar-daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
+SERVICEUNIT
 
 # Desktop entry (GNOME standard location for packages)
 cat > "${RPM_ROOT}/usr/share/applications/com.ppmuzyk.eaststar.desktop" << 'DESKTOP'
@@ -142,6 +161,7 @@ mkdir -p "${DEB_ROOT}/usr/share/eaststar/assets"
 
 cp "$BIN_DIR/eaststar" "${DEB_ROOT}/usr/local/bin/"
 cp "$BIN_DIR/eaststar-saver" "${DEB_ROOT}/usr/local/bin/"
+cp "$BIN_DIR/eaststar-daemon" "${DEB_ROOT}/usr/local/bin/"
 cp "$ASSETS_DIR/nebula2.png" "${DEB_ROOT}/usr/share/eaststar/assets/" 2>/dev/null || true
 cp LICENSE "${DEB_ROOT}/usr/share/doc/eaststar/copyright"
 cp README.md "${DEB_ROOT}/usr/share/doc/eaststar/"
@@ -153,6 +173,24 @@ if [ -f "${RPM_ROOT}/usr/share/icons/hicolor/128x128/apps/com.ppmuzyk.eaststar.p
 fi
 
 INSTALLED_SIZE=$(du -sk "${DEB_ROOT}" | cut -f1)
+
+# systemd user service
+mkdir -p "${DEB_ROOT}/usr/lib/systemd/user"
+cat > "${DEB_ROOT}/usr/lib/systemd/user/eaststar.service" << 'SERVICEUNIT'
+[Unit]
+Description=eastStar background idle monitor and screensaver launcher
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/eaststar-daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
+SERVICEUNIT
 
 cat > "${DEB_CONTROL}/control" << CONTROL
 Package: eaststar
@@ -190,6 +228,11 @@ echo "DEB: $(ls -lh "$DEB_PKG" | awk '{print $5}')"
 # Clean up tmp files
 rm -f /tmp/eaststar-payload.cpio.gz /tmp/eaststar-hdrs /tmp/eaststar-control.tar.gz /tmp/eaststar-data.tar.gz
 
+echo ""
+echo "=== Post-install notes ==="
+echo "After installing, enable the background daemon with:"
+echo "  systemctl --user daemon-reload"
+echo "  systemctl --user enable --now eaststar.service"
 echo ""
 echo "=== Package summary ==="
 ls -lh dist/eaststar*.{rpm,deb,tar.gz} 2>/dev/null || echo "Some packages may have failed - check output above"

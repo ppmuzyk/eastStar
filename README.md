@@ -15,18 +15,21 @@ The first milestone is a local Linux app that:
 
 ## Current State
 
-This repository is now in an early controller-app phase.
+This repository is now in an early controller-app phase with a background daemon.
 
 Running the app opens a normal control panel window that:
 
-- polls GNOME idle time through Mutter's idle monitor
-- persists its own saver settings to `~/.config/eaststar/settings.conf`
-- promotes itself into fullscreen saver mode after the configured inactivity delay
-- can optionally request a desktop lock some time after the saver starts
-- launches the fullscreen renderer through the separate `eaststar-saver` binary
-- leaves GNOME's own lock timing alone
+- lets you configure the saver activation delay and visual effect
+- persists settings to `~/.config/eaststar/settings.conf`
+- provides a "Preview Saver" button for immediate fullscreen preview
 
-At the moment, the idle watcher is active while the preferences app is running. Autostart/background packaging is still a separate next step.
+The background daemon (`eaststar-daemon`) runs independently as a systemd user service:
+
+- polls GNOME idle time through Mutter's idle monitor once per second
+- launches the fullscreen saver (`eaststar-saver`) when idle reaches the configured delay
+- can optionally request a desktop lock after the saver has been active for a configurable time
+- automatically picks up settings changes from the preferences panel (reloads config each cycle)
+- leaves GNOME's own lock timing alone
 
 ## Current Controls
 
@@ -39,24 +42,32 @@ The saver visual is intentionally dark and low-density to reduce static bright-p
 
 ## GNOME Integration Goal
 
-The intended GNOME behavior is:
-
 - `eastStar` has its own saver inactivity delay
 - when that delay is reached, `eastStar` shows the fullscreen visual instead of a plain blank screen
 - GNOME's own automatic lock settings still decide whether and when the session locks afterward
 
-So the saver and the lock policy are separate on purpose.
+## Architecture
+
+Three binaries:
+
+| Binary | Role |
+|--------|------|
+| `eaststar` | GTK4 preferences panel |
+| `eaststar-daemon` | Background idle monitor (systemd user service) |
+| `eaststar-saver` | Fullscreen visual renderer |
+
+The daemon is the core runtime — it runs in the background, watches idle time, and spawns the saver when needed. The preferences panel is only needed when you want to change settings.
 
 ## Completed Milestones
 
 1. **Tighten GNOME inactivity behavior** — Uses Mutter idle monitor with configurable saver delay and optional screen lock.
 2. **Settings panel and effect selection UI** — GTK4 preferences app with delay/lock controls, visual effect picker (Nebula Flight / Pipes / Fractal Plasma), and preview.
+3. **Background daemon with systemd integration** — `eaststar-daemon` runs as a `systemd --user` service, monitors idle time independently of the preferences window, and auto-launches the saver.
 
 ## Planned Milestones
 
-1. Add auto-start / background-run packaging for GNOME sessions (systemd user unit or XDG autostart).
-2. Add multi-monitor handling.
-3. Add KDE support.
+1. Add multi-monitor handling.
+2. Add KDE support.
 
 ## Installation
 
@@ -66,19 +77,22 @@ For a user-local GNOME install from source:
 
 ```bash
 ./install.sh
-gtk-launch com.ppmuzyk.eaststar
 ```
 
 This installs:
 
-- `eaststar` and `eaststar-saver` into `~/.local/bin`
+- `eaststar`, `eaststar-daemon`, and `eaststar-saver` into `~/.local/bin`
 - the desktop entry into `~/.local/share/applications`
 - the generated icon theme entries into `~/.local/share/icons/hicolor`
+- a systemd user service at `~/.config/systemd/user/eaststar.service`
+
+The systemd service is enabled and started automatically. The daemon begins watching idle time immediately after login.
 
 Useful options:
 
 - `./install.sh --debug` installs the debug build instead of release
 - `./install.sh --prefix /some/prefix` installs into a custom prefix
+- `./install.sh --no-systemd` skips systemd service setup
 
 To remove the local install:
 
@@ -86,19 +100,23 @@ To remove the local install:
 ./uninstall.sh
 ```
 
-### Release Packages
+### Managing the Daemon
 
-When public release packages are published, link them from the repository description and the GitHub Releases page.
-
-Recommended short install copy for release notes or the repo description:
-
-```text
-Linux (GNOME/Wayland): download a package from Releases, install it, then launch eastStar from the app grid or with gtk-launch com.ppmuzyk.eaststar.
+```bash
+systemctl --user status eaststar         # check if running
+systemctl --user stop eaststar           # stop the daemon
+systemctl --user start eaststar          # start the daemon
+systemctl --user restart eaststar        # restart after settings changes
+journalctl --user -u eaststar -f         # follow daemon logs
 ```
 
-Until those packages exist, the source install flow above is the supported path.
+To disable automatic startup:
 
-## Release Packages
+```bash
+systemctl --user disable eaststar
+```
+
+### Release Packages
 
 Release builds are distributed in three formats:
 
@@ -110,31 +128,33 @@ Release builds are distributed in three formats:
 
 Download from the [GitHub Releases](https://github.com/ppmuzyk/eastStar/releases) page.
 
-### RPM (Fedora, RHEL, CentOS Stream)
+#### RPM (Fedora, RHEL, CentOS Stream)
 
 ```bash
 sudo rpm -i eaststar-0.1.0-1.x86_64.rpm
-gtk-launch com.ppmuzyk.eaststar
+systemctl --user daemon-reload
+systemctl --user enable --now eaststar
 ```
 
-### DEB (Debian, Ubuntu, Pop!_OS)
+#### DEB (Debian, Ubuntu, Pop!_OS)
 
 ```bash
 sudo dpkg -i eaststar_0.1.0-1_amd64.deb
-gtk-launch com.ppmuzyk.eaststar
+systemctl --user daemon-reload
+systemctl --user enable --now eaststar
 ```
 
-### Tarball (any Linux)
+#### Tarball (any Linux)
 
 ```bash
 tar xzf eaststar-0.1.0-x86_64-unknown-linux-gnu.tar.gz
 cd eaststar-0.1.0-x86_64-unknown-linux-gnu
 ./install.sh
-gtk-launch com.ppmuzyk.eaststar
 ```
 
 All formats include:
 
-- `eaststar` and `eaststar-saver` (release-optimized binaries)
+- `eaststar`, `eaststar-daemon`, and `eaststar-saver` (release-optimized binaries)
 - GNOME desktop entry (`com.ppmuzyk.eaststar.desktop`)
+- systemd user service unit (`eaststar.service`)
 - MIT license and documentation
