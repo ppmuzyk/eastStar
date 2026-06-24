@@ -9,6 +9,7 @@ pub enum DesktopTarget {
 pub trait IdleMonitor {
     fn backend_name(&self) -> &'static str;
     fn current_idle_duration(&mut self) -> Option<Duration>;
+    fn is_inhibited(&self) -> bool;
 }
 
 pub struct GnomeIdleMonitor {
@@ -74,5 +75,29 @@ impl IdleMonitor for GnomeIdleMonitor {
         }
 
         self.cached_idle
+    }
+
+    fn is_inhibited(&self) -> bool {
+        let output = Command::new("gdbus")
+            .args([
+                "call",
+                "--session",
+                "--dest",
+                "org.gnome.SessionManager",
+                "--object-path",
+                "/org/gnome/SessionManager",
+                "--method",
+                "org.gnome.SessionManager.IsInhibited",
+                "8", // INHIBIT_IDLE
+            ])
+            .output();
+
+        match output {
+            Ok(output) if output.status.success() => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                stdout.contains("true")
+            }
+            _ => false,
+        }
     }
 }

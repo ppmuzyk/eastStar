@@ -89,6 +89,11 @@ fn main() {
         let idle_seconds = idle_duration.as_secs();
 
         if idle_seconds >= settings.saver_delay_seconds {
+            // Don't launch saver if something is inhibiting idle
+            // (e.g. fullscreen video, active presentation)
+            if idle_monitor.is_inhibited() {
+                continue;
+            }
             match spawn_saver() {
                 Ok(child) => {
                     log!(
