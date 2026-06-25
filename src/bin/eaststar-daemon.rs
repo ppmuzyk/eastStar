@@ -76,6 +76,7 @@ fn main() {
 
     let mut idle_monitor = GnomeIdleMonitor::new();
     let mut saver_state: Option<SaverState> = None;
+    let mut was_locked = is_session_locked();
 
     loop {
         std::thread::sleep(std::time::Duration::from_secs(1));
@@ -94,18 +95,22 @@ fn main() {
             settings = current_settings;
         }
 
-        // Check if the session was unlocked while saver is running
+        // Track session lock state to detect unlock transitions
         let currently_locked = is_session_locked();
 
         // Check if the saver process has exited
         if let Some(ref mut state) = saver_state {
-            // When session transitions from locked to unlocked, kill the saver
-            if !currently_locked {
+            // When session transitions from locked to unlocked, kill the saver.
+            // Only on actual transition (was locked, now unlocked), not when
+            // the session was never locked in the first place.
+            if was_locked && !currently_locked {
                 log!("eastStar daemon: session unlocked — dismissing saver");
                 kill_saver(&mut state.child);
                 saver_state = None;
+                was_locked = currently_locked;
                 continue;
             }
+            was_locked = currently_locked;
             match state.child.try_wait() {
                 Ok(Some(status)) => {
                     log!("eastStar daemon: saver exited ({status})");
