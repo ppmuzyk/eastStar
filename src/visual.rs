@@ -739,189 +739,193 @@ precision highp float;
 
 varying vec2 uv;
 
-uniform vec2 Resolution;
-uniform float Time;
-uniform float Brightness;
-uniform vec4 Params;
+uniform vec2 u_resolution;
+uniform float u_time;
+uniform float u_speed;
+uniform float u_brightness;
+uniform float u_seed;
 
-// ---------------------------------------------------------------------------
-// Hash + noise + FBM
-// ---------------------------------------------------------------------------
-float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+#define NEBULA_LAYERS 5
+#define STAR_LAYERS 4
+
+float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
 }
 
-float noise(vec2 p) {
+float noise2(vec2 p) {
     vec2 i = floor(p);
     vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
-               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+
+    float a = hash21(i);
+    float b = hash21(i + vec2(1.0, 0.0));
+    float c = hash21(i + vec2(0.0, 1.0));
+    float d = hash21(i + vec2(1.0, 1.0));
+
+    vec2 u = f * f * (3.0 - 2.0 * f);
+
+    return mix(
+        mix(a, b, u.x),
+        mix(c, d, u.x),
+        u.y
+    );
+}
+
+mat2 rot(float a) {
+    float c = cos(a);
+    float s = sin(a);
+    return mat2(c, -s, s, c);
 }
 
 float fbm(vec2 p) {
     float v = 0.0;
     float a = 0.5;
-    for (int i = 0; i < 5; i++) {
-        v += a * noise(p);
-        p = mat2(0.8, -0.6, 0.6, 0.8) * p * 2.03 + vec2(11.7, 4.3);
-        a *= 0.48;
+
+    mat2 m = mat2(
+        0.80, -0.60,
+        0.60,  0.80
+    );
+
+    for (int i = 0; i < 4; i++) {
+        v += a * noise2(p);
+        p = m * p * 2.03 + vec2(17.7, 9.2);
+        a *= 0.5;
     }
+
     return v;
 }
 
-// ---------------------------------------------------------------------------
-// Nebula gas — expanding outward for "flying forward" feel
-// ---------------------------------------------------------------------------
-float nebula_gas(vec2 p, float time) {
-    // Gentle rotation + slow drift of the gas field
-    float angle = time * 0.04;
-    vec2 rp = vec2(
-        p.x * cos(angle) - p.y * sin(angle),
-        p.x * sin(angle) + p.y * cos(angle)
-    );
-
-    // Domain warp for organic shapes
+float nebula_density(vec2 p, float id) {
     vec2 q = vec2(
-        fbm(rp * 1.1 + vec2(time * 0.05, 0.0)),
-        fbm(rp * 1.1 + vec2(0.0, time * 0.04))
+        fbm(p * 0.70 + vec2(id * 11.3, id * 3.7)),
+        fbm(p * 0.70 + vec2(4.2 + id * 5.1, 8.7 + id * 9.4))
     );
 
-    vec2 wp = rp + (q - 0.5) * 1.6;
+    vec2 warped = p + (q - 0.5) * 2.25;
 
-    float f = fbm(wp * 0.8);
+    float base = fbm(warped * 1.35);
+    float wisps = fbm(warped * 3.10 + q * 2.0);
 
-    // Create filament structure: empty space with glowing strands
-    float strands = abs(f - 0.5) * 2.0;  // peaks at edges of fbm
-    strands = smoothstep(0.45, 0.85, strands);
+    float cloudy = smoothstep(0.34, 0.84, base);
+    float fine = smoothstep(0.50, 0.90, wisps);
 
-    // Add broader glow regions
-    float glow = fbm(wp * 0.4 + vec2(time * 0.02, time * 0.015));
-    glow = smoothstep(0.5, 0.8, glow);
-
-    return mix(strands * 0.5, glow * 0.8, 0.4) * Params.x;
+    return cloudy * 0.78 + fine * 0.32;
 }
 
-// ---------------------------------------------------------------------------
-// Color palette
-// ---------------------------------------------------------------------------
-vec3 gas_color(vec2 p, float density, float time) {
-    float shift = fbm(p * 0.06 + time * 0.01);
+vec3 nebula_palette(float t, float id) {
+    vec3 deep = vec3(0.006, 0.010, 0.030);
+    vec3 blue = vec3(0.035, 0.120, 0.360);
+    vec3 violet = vec3(0.180, 0.045, 0.320);
+    vec3 cyan = vec3(0.050, 0.360, 0.560);
 
-    vec3 c = mix(
-        vec3(0.02, 0.03, 0.14),   // deep space blue
-        vec3(0.12, 0.06, 0.35),   // violet
-        shift
-    );
-    c = mix(c, vec3(0.08, 0.35, 0.65), smoothstep(0.15, 0.45, density) * 0.6);
-    c = mix(c, vec3(0.35, 0.18, 0.50), smoothstep(0.40, 0.70, density) * 0.3);
-    c = mix(c, vec3(0.50, 0.60, 0.85), smoothstep(0.65, 1.00, density) * 0.25);
+    float shift = 0.5 + 0.5 * sin(t * 6.2831853 + id * 1.71 + u_time * 0.045);
+
+    vec3 c = mix(blue, violet, shift);
+    c = mix(c, cyan, smoothstep(0.62, 1.0, t) * 0.45);
+    c = mix(deep, c, 0.82);
 
     return c;
 }
 
-// ---------------------------------------------------------------------------
-// Stars — full parallax starfield like NebulaFlight
-// ---------------------------------------------------------------------------
-float star_hash2(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+float star_layer(vec2 p, float z, float id) {
+    float depth = 0.14 + z * 2.45;
+
+    vec2 q = p / depth;
+    q = rot(id * 0.73) * q;
+
+    float scale = mix(72.0, 30.0, z);
+    vec2 g = q * scale;
+
+    vec2 cell = floor(g);
+    vec2 local = fract(g) - 0.5;
+
+    float h = hash21(cell + vec2(id * 31.7, u_seed * 19.1));
+
+    float exists = step(0.987, h);
+
+    float size = mix(0.075, 0.025, z);
+    float d = length(local);
+
+    float star = exists * smoothstep(size, 0.0, d);
+
+    // Fade when the pseudo-depth layer resets.
+    float fade = smoothstep(0.03, 0.20, z) * (1.0 - smoothstep(0.80, 1.0, z));
+
+    return star * fade * (1.0 - z * 0.35);
 }
 
 void main() {
-    vec2 res = Resolution;
-    float time = Time;
+    vec2 p = uv * 2.0 - vec2(1.0);
+    p.x *= u_resolution.x / u_resolution.y;
 
-    // Normalized coords, centered at 0, aspect-corrected
-    vec2 uv_centered = uv * 2.0 - 1.0;
-    uv_centered.x *= res.x / max(res.y, 1.0);
+    float t = u_time;
 
-    // ===================================================================
-    // STARFIELD — like NebulaFlight: particles that expand from center
-    // ===================================================================
-    vec3 star_color = vec3(0.0);
-    vec3 star_accum = vec3(0.0);
+    // Moving vanishing point. This avoids a static center burn-in point.
+    vec2 center_drift = vec2(
+        sin(t * 0.071 + u_seed) * 0.075,
+        cos(t * 0.063 + u_seed * 0.7) * 0.060
+    );
 
-    for (int si = 0; si < 48; si++) {
-        // Deterministic "star seed" per pixel lookup
-        float fi = float(si);
-        float seed = star_hash2(vec2(fi * 0.73, fi * 0.37));
+    p -= center_drift;
 
-        // Star position: scattered across the screen
-        vec2 star_pos = vec2(
-            star_hash2(vec2(seed, fi * 0.31)) * 2.0 - 1.0,
-            star_hash2(vec2(fi * 0.29, seed)) * 2.0 - 1.0
-        );
-        star_pos.x *= res.x / max(res.y, 1.0);
+    vec3 color = vec3(0.002, 0.004, 0.012);
 
-        // Parallax expansion: stars move outward from center over time
-        // Each star has its own speed (depth layer)
-        float depth = 0.1 + seed * 0.9;
-        float speed = depth * 0.12;
+    // Nebula pseudo-depth sheets.
+    for (int i = 0; i < NEBULA_LAYERS; i++) {
+        float id = float(i);
 
-        // Stars spiral outward from center
-        float star_angle = atan(star_pos.y, star_pos.x) + time * speed * 0.3;
-        float star_dist = length(star_pos) + time * speed;
-        star_dist = mod(star_dist, 2.5);  // loop around
+        // As time increases, z decreases, so each layer appears to expand toward camera.
+        float z = fract(id / float(NEBULA_LAYERS) - t * u_speed * 0.045 + 10.0);
 
-        vec2 current = vec2(cos(star_angle), sin(star_angle)) * star_dist;
+        float fade =
+            smoothstep(0.02, 0.22, z) *
+            (1.0 - smoothstep(0.78, 1.0, z));
 
-        // Distance from this pixel to the star
-        float d = length(uv_centered - current);
+        float depth = 0.18 + z * 1.95;
 
-        // Stars near center are small, near edges are bigger (parallax)
-        float size = 0.002 + star_dist * 0.006;
-        float brightness = 1.0 - smoothstep(0.0, size, d);
+        vec2 q = p / depth;
 
-        // Twinkle
-        float twinkle = 0.6 + 0.4 * sin(time * 4.0 + seed * 200.0);
+        q += vec2(
+            sin(t * 0.031 + id * 1.9),
+            cos(t * 0.027 + id * 2.6)
+        ) * 0.45;
 
-        // Color variation
-        vec3 sc = mix(
-            vec3(0.6, 0.7, 0.95),
-            vec3(0.9, 0.85, 0.7),
-            star_hash2(vec2(fi + 0.5, seed)) * 0.5
-        );
+        q = rot(t * 0.006 + id * 0.41) * q;
 
-        star_accum += sc * brightness * twinkle * Params.w * 3.0;
+        float d = nebula_density(q, id);
+
+        // Make closer layers brighter but fade them out before reset.
+        float weight = fade * mix(1.25, 0.42, z);
+
+        vec3 layer_color = nebula_palette(d, id);
+
+        color += layer_color * d * weight * 0.34;
     }
 
-    // ===================================================================
-    // NEBULA GAS — expanding + rotating
-    // ===================================================================
-    vec2 p = uv_centered;
+    // Procedural star depth layers.
+    float stars = 0.0;
 
-    // "Flying forward" expansion: zoom out from center over time
-    float expansion = 1.0 + time * 0.06;
-    vec2 ep = p * expansion;
-    // Wrap for continuous flight
-    ep = mod(ep + 1.0, 2.0) - 1.0;
+    for (int i = 0; i < STAR_LAYERS; i++) {
+        float id = float(i);
 
-    float gas_density = nebula_gas(ep, time);
+        float z = fract(id / float(STAR_LAYERS) - t * u_speed * 0.095 + 20.0);
 
-    // Also sample offset positions for extra depth
-    float gas2 = nebula_gas(ep * 1.7 + vec2(0.3, -0.2), time * 0.8 + 1.5);
-    float gas3 = nebula_gas(ep * 0.5 + vec2(-0.2, 0.4), time * 1.3 + 3.0);
+        stars += star_layer(p, z, id);
+    }
 
-    float total_density = gas_density * 0.6 + gas2 * 0.25 + gas3 * 0.15;
+    color += vec3(0.62, 0.72, 0.95) * stars * 0.65;
 
-    vec3 nebula = gas_color(p, total_density, time) * total_density;
-
-    // ===================================================================
-    // COMPOSITE
-    // ===================================================================
-    vec3 color = nebula * 1.2 + star_accum;
-
-    // Gentle tone mapping
-    color = color / (color + vec3(1.2));
-
-    color *= Brightness;
-
-    // Subtle vignette
-    float vignette = 1.0 - smoothstep(0.6, 1.5, length(uv_centered)) * 0.3;
+    // Soft edge darkening, but not a hard vignette.
+    float r = length(p);
+    float vignette = 1.0 - smoothstep(1.10, 1.85, r) * 0.55;
     color *= vignette;
 
-    // Keep deep space dark
-    color = max(color, vec3(0.0));
+    // Brightness cap for screensaver/burn-in friendliness.
+    color *= u_brightness;
+
+    // Gentle gamma lift.
+    color = pow(color, vec3(0.86));
 
     gl_FragColor = vec4(color, 1.0);
 }
@@ -929,24 +933,21 @@ void main() {
 
 
 
+
+
 pub struct ProceduralNebulaVisual {
     material: Option<Material>,
     time: f32,
-    reseed_timer: f32,
-    density_scale: f32,
-    star_brightness: f32,
+    seed: f32,
 }
 
 impl ProceduralNebulaVisual {
     pub fn new() -> Self {
-        let visual = Self {
+        Self {
             material: None,
             time: gen_range(0.0, 500.0),
-            reseed_timer: 0.0,
-            density_scale: 1.10 + gen_range(0.0, 1.0) * 0.40,
-            star_brightness: 0.60 + gen_range(0.0, 1.0) * 0.40,
-        };
-        visual
+            seed: gen_range(0.0, std::f32::consts::TAU),
+        }
     }
 
     fn ensure_material(&mut self) {
@@ -960,66 +961,61 @@ impl ProceduralNebulaVisual {
                 fragment: PROCEDURAL_NEBULA_FRAGMENT,
             },
             MaterialParams {
-                pipeline_params: PipelineParams::default(),
                 uniforms: vec![
-                    UniformDesc::new("Resolution", UniformType::Float2),
-                    UniformDesc::new("Time", UniformType::Float1),
-                    UniformDesc::new("Brightness", UniformType::Float1),
-                    UniformDesc::new("Params", UniformType::Float4),
+                    UniformDesc::new("u_resolution", UniformType::Float2),
+                    UniformDesc::new("u_time", UniformType::Float1),
+                    UniformDesc::new("u_speed", UniformType::Float1),
+                    UniformDesc::new("u_brightness", UniformType::Float1),
+                    UniformDesc::new("u_seed", UniformType::Float1),
                 ],
                 ..Default::default()
             },
-        )
-        .ok();
+        );
 
-        self.material = material;
-    }
-
-    fn reseed_params(&mut self) {
-        self.density_scale = 1.00 + gen_range(0.0, 1.0) * 0.50;
-        self.star_brightness = 0.50 + gen_range(0.0, 1.0) * 0.50;
+        match material {
+            Ok(material) => {
+                self.material = Some(material);
+            }
+            Err(err) => {
+                eprintln!("Failed to load procedural nebula shader: {err}");
+            }
+        }
     }
 }
 
 impl VisualSession for ProceduralNebulaVisual {
     fn prepare(&mut self, _width: f32, _height: f32) {
         self.ensure_material();
-        self.reseed_timer = gen_range(0.0, 360.0);
     }
 
     fn update(&mut self, _width: f32, _height: f32, dt: f32) {
+        self.ensure_material();
         self.time += dt;
-        self.reseed_timer += dt;
-
-        if self.reseed_timer >= 600.0 {
-            self.reseed_timer = 0.0;
-            self.reseed_params();
-        }
     }
 
     fn draw(&self, width: f32, height: f32) {
-        clear_background(Color::from_rgba(2, 3, 9, 255));
+        clear_background(Color::from_rgba(2, 3, 8, 255));
 
         let Some(material) = &self.material else {
             return;
         };
 
-        let brightness: f32 = 0.85;
-        material.set_uniform("Resolution", (width, height));
-        material.set_uniform("Time", self.time);
-        material.set_uniform("Brightness", brightness);
-        material.set_uniform(
-            "Params",
-            (
-                self.density_scale,
-                0.0_f32,
-                0.0_f32,
-                self.star_brightness,
-            ),
-        );
+        material.set_uniform("u_resolution", vec2(width, height));
+        material.set_uniform("u_time", self.time);
+        material.set_uniform("u_speed", 1.0f32);
+        material.set_uniform("u_brightness", 0.62f32);
+        material.set_uniform("u_seed", self.seed);
 
         gl_use_material(material);
-        draw_rectangle(0.0, 0.0, width, height, WHITE);
+
+        draw_rectangle(
+            0.0,
+            0.0,
+            width,
+            height,
+            WHITE,
+        );
+
         gl_use_default_material();
     }
 }
