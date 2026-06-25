@@ -744,7 +744,10 @@ uniform float Time;
 uniform float Brightness;
 uniform vec4 Params;
 
-float hash21(vec2 p) {
+// ---------------------------------------------------------------------------
+// Hash + noise + FBM
+// ---------------------------------------------------------------------------
+float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
@@ -752,117 +755,179 @@ float noise(vec2 p) {
     vec2 i = floor(p);
     vec2 f = fract(p);
     f = f * f * (3.0 - 2.0 * f);
-    float a = hash21(i);
-    float b = hash21(i + vec2(1.0, 0.0));
-    float c = hash21(i + vec2(0.0, 1.0));
-    float d = hash21(i + vec2(1.0, 1.0));
-    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
 
-float fbm(vec2 p_in) {
-    vec2 p = p_in;
-    float value = 0.0;
-    float amp = 0.5;
-    float freq = 1.0;
+float fbm(vec2 p) {
+    float v = 0.0;
+    float a = 0.5;
     for (int i = 0; i < 5; i++) {
-        value += amp * noise(p * freq);
-        p = vec2(
-            0.80 * p.x - 0.60 * p.y,
-            0.60 * p.x + 0.80 * p.y
-        ) * 2.03 + vec2(11.7, 4.3);
-        amp *= 0.48;
-        freq *= 2.03;
+        v += a * noise(p);
+        p = mat2(0.8, -0.6, 0.6, 0.8) * p * 2.03 + vec2(11.7, 4.3);
+        a *= 0.48;
     }
-    return value;
+    return v;
 }
 
-float nebula_layer(vec2 p, float layer_idx, float time) {
-    float depth = 0.15 + layer_idx * 0.18;
-    float speed = 0.04 + depth * 0.32;
-    vec2 drift = vec2(time * speed * 0.7, time * speed * 0.5);
-    float zoom = 0.6 + depth * 2.2;
-    vec2 sp = (p * zoom + drift) * (1.0 + layer_idx * 0.15);
-    vec2 warp = vec2(
-        fbm(sp * 0.7 + vec2(time * 0.03, 0.0)),
-        fbm(sp * 0.7 + vec2(5.2, time * 0.02))
+// ---------------------------------------------------------------------------
+// Nebula gas — expanding outward for "flying forward" feel
+// ---------------------------------------------------------------------------
+float nebula_gas(vec2 p, float time) {
+    // Gentle rotation + slow drift of the gas field
+    float angle = time * 0.04;
+    vec2 rp = vec2(
+        p.x * cos(angle) - p.y * sin(angle),
+        p.x * sin(angle) + p.y * cos(angle)
     );
-    vec2 wp = sp + (warp - vec2(0.5)) * (0.3 + depth * 0.7);
-    float f = fbm(wp * (0.5 + depth * 0.4));
-    float threshold = 0.22 + depth * 0.12;
-    f = smoothstep(threshold, threshold + 0.40, f);
-    float depth_fade = 1.0 - depth * 0.55;
-    return f * depth_fade;
+
+    // Domain warp for organic shapes
+    vec2 q = vec2(
+        fbm(rp * 1.1 + vec2(time * 0.05, 0.0)),
+        fbm(rp * 1.1 + vec2(0.0, time * 0.04))
+    );
+
+    vec2 wp = rp + (q - 0.5) * 1.6;
+
+    float f = fbm(wp * 0.8);
+
+    // Create filament structure: empty space with glowing strands
+    float strands = abs(f - 0.5) * 2.0;  // peaks at edges of fbm
+    strands = smoothstep(0.45, 0.85, strands);
+
+    // Add broader glow regions
+    float glow = fbm(wp * 0.4 + vec2(time * 0.02, time * 0.015));
+    glow = smoothstep(0.5, 0.8, glow);
+
+    return mix(strands * 0.5, glow * 0.8, 0.4) * Params.x;
 }
 
-vec3 nebula_color(vec2 p_raw, float accumulated_density, float time) {
-    float shift = fbm(p_raw * 0.09 + vec2(time * 0.01, time * 0.013));
-    vec3 deep   = vec3(0.04, 0.06, 0.18);
-    vec3 blue   = vec3(0.08, 0.16, 0.50);
-    vec3 violet = vec3(0.30, 0.10, 0.48);
-    vec3 cyan   = vec3(0.12, 0.55, 0.80);
-    vec3 pink   = vec3(0.45, 0.15, 0.35);
-    vec3 pale   = vec3(0.50, 0.65, 0.90);
-    vec3 c = mix(deep, blue, shift * 0.7);
-    float d = accumulated_density;
-    c = mix(c, violet, smoothstep(0.08, 0.22, d) * 0.4);
-    c = mix(c, cyan,   smoothstep(0.18, 0.35, d) * 0.5);
-    c = mix(c, pink,   smoothstep(0.28, 0.45, d) * 0.3);
-    c = mix(c, pale,   smoothstep(0.40, 0.65, d) * 0.35);
+// ---------------------------------------------------------------------------
+// Color palette
+// ---------------------------------------------------------------------------
+vec3 gas_color(vec2 p, float density, float time) {
+    float shift = fbm(p * 0.06 + time * 0.01);
+
+    vec3 c = mix(
+        vec3(0.02, 0.03, 0.14),   // deep space blue
+        vec3(0.12, 0.06, 0.35),   // violet
+        shift
+    );
+    c = mix(c, vec3(0.08, 0.35, 0.65), smoothstep(0.15, 0.45, density) * 0.6);
+    c = mix(c, vec3(0.35, 0.18, 0.50), smoothstep(0.40, 0.70, density) * 0.3);
+    c = mix(c, vec3(0.50, 0.60, 0.85), smoothstep(0.65, 1.00, density) * 0.25);
+
     return c;
 }
 
-float star_hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-}
-
-vec3 star_field(vec2 uv_raw, float time) {
-    vec2 p = uv_raw * 280.0;
-    vec2 cell = floor(p);
-    vec2 local = fract(p) - 0.5;
-    float h = star_hash(cell + vec2(time * 0.01, 0.0));
-    float star = 0.0;
-    if (h > 0.993) {
-        float dist = length(local);
-        star = smoothstep(0.07, 0.0, dist);
-    } else if (h > 0.978) {
-        float dist = length(local);
-        star = smoothstep(0.04, 0.0, dist) * 0.4;
-    }
-    float twinkle = 0.7 + 0.3 * sin(time * 3.5 + h * 200.0);
-    float color_seed = star_hash(cell + 0.5);
-    vec3 star_color = mix(
-        vec3(0.55, 0.65, 0.90),
-        vec3(0.85, 0.82, 0.75),
-        color_seed * 0.6
-    );
-    return star_color * star * twinkle * Params.w;
+// ---------------------------------------------------------------------------
+// Stars — full parallax starfield like NebulaFlight
+// ---------------------------------------------------------------------------
+float star_hash2(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
 void main() {
     vec2 res = Resolution;
     float time = Time;
-    vec2 uv_norm = uv * 2.0 - vec2(1.0, 1.0);
-    uv_norm.x *= res.x / max(res.y, 1.0);
-    vec2 p = uv_norm;
-    float LAYER_COUNT = 5.0;
-    vec3 color = vec3(0.0);
-    for (float layer = 0.0; layer < LAYER_COUNT; layer += 1.0) {
-        float layer_norm = layer / max(LAYER_COUNT - 1.0, 1.0);
-        float density = nebula_layer(p, layer_norm, time);
-        density *= Params.x;
-        vec3 layer_color = nebula_color(p, density, time + layer_norm * 1.7);
-        float depth_weight = 0.55 + layer_norm * 0.45;
-        color = color + layer_color * density * depth_weight * 0.65;
+
+    // Normalized coords, centered at 0, aspect-corrected
+    vec2 uv_centered = uv * 2.0 - 1.0;
+    uv_centered.x *= res.x / max(res.y, 1.0);
+
+    // ===================================================================
+    // STARFIELD — like NebulaFlight: particles that expand from center
+    // ===================================================================
+    vec3 star_color = vec3(0.0);
+    vec3 star_accum = vec3(0.0);
+
+    for (int si = 0; si < 48; si++) {
+        // Deterministic "star seed" per pixel lookup
+        float fi = float(si);
+        float seed = star_hash2(vec2(fi * 0.73, fi * 0.37));
+
+        // Star position: scattered across the screen
+        vec2 star_pos = vec2(
+            star_hash2(vec2(seed, fi * 0.31)) * 2.0 - 1.0,
+            star_hash2(vec2(fi * 0.29, seed)) * 2.0 - 1.0
+        );
+        star_pos.x *= res.x / max(res.y, 1.0);
+
+        // Parallax expansion: stars move outward from center over time
+        // Each star has its own speed (depth layer)
+        float depth = 0.1 + seed * 0.9;
+        float speed = depth * 0.12;
+
+        // Stars spiral outward from center
+        float star_angle = atan(star_pos.y, star_pos.x) + time * speed * 0.3;
+        float star_dist = length(star_pos) + time * speed;
+        star_dist = mod(star_dist, 2.5);  // loop around
+
+        vec2 current = vec2(cos(star_angle), sin(star_angle)) * star_dist;
+
+        // Distance from this pixel to the star
+        float d = length(uv_centered - current);
+
+        // Stars near center are small, near edges are bigger (parallax)
+        float size = 0.002 + star_dist * 0.006;
+        float brightness = 1.0 - smoothstep(0.0, size, d);
+
+        // Twinkle
+        float twinkle = 0.6 + 0.4 * sin(time * 4.0 + seed * 200.0);
+
+        // Color variation
+        vec3 sc = mix(
+            vec3(0.6, 0.7, 0.95),
+            vec3(0.9, 0.85, 0.7),
+            star_hash2(vec2(fi + 0.5, seed)) * 0.5
+        );
+
+        star_accum += sc * brightness * twinkle * Params.w * 3.0;
     }
-    color = color / (color + vec3(1.5));
-    vec3 stars = star_field(uv_norm + vec2(time * 0.015, time * 0.008), time);
-    color = color + stars;
+
+    // ===================================================================
+    // NEBULA GAS — expanding + rotating
+    // ===================================================================
+    vec2 p = uv_centered;
+
+    // "Flying forward" expansion: zoom out from center over time
+    float expansion = 1.0 + time * 0.06;
+    vec2 ep = p * expansion;
+    // Wrap for continuous flight
+    ep = mod(ep + 1.0, 2.0) - 1.0;
+
+    float gas_density = nebula_gas(ep, time);
+
+    // Also sample offset positions for extra depth
+    float gas2 = nebula_gas(ep * 1.7 + vec2(0.3, -0.2), time * 0.8 + 1.5);
+    float gas3 = nebula_gas(ep * 0.5 + vec2(-0.2, 0.4), time * 1.3 + 3.0);
+
+    float total_density = gas_density * 0.6 + gas2 * 0.25 + gas3 * 0.15;
+
+    vec3 nebula = gas_color(p, total_density, time) * total_density;
+
+    // ===================================================================
+    // COMPOSITE
+    // ===================================================================
+    vec3 color = nebula * 1.2 + star_accum;
+
+    // Gentle tone mapping
+    color = color / (color + vec3(1.2));
+
     color *= Brightness;
-    float vignette = 1.0 - smoothstep(0.5, 1.4, length(uv_norm)) * 0.35;
+
+    // Subtle vignette
+    float vignette = 1.0 - smoothstep(0.6, 1.5, length(uv_centered)) * 0.3;
     color *= vignette;
+
+    // Keep deep space dark
+    color = max(color, vec3(0.0));
+
     gl_FragColor = vec4(color, 1.0);
 }
 "#;
+
+
 
 pub struct ProceduralNebulaVisual {
     material: Option<Material>,
