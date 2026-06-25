@@ -40,11 +40,6 @@ async fn main() {
         }
 
         app.draw();
-
-        // Continuously hide cursor — on some Wayland compositors
-        // the initial show_mouse(false) is not enough.
-        show_mouse(false);
-
         next_frame().await;
     }
 }
