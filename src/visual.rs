@@ -939,7 +939,7 @@ impl VisualSession for ProceduralNebulaVisual {
             return;
         };
 
-        let brightness = 0.55;
+        let brightness: f32 = 0.55;
         material.set_uniform("Resolution", (width, height));
         material.set_uniform("Time", self.time);
         material.set_uniform("Brightness", brightness);
@@ -947,8 +947,8 @@ impl VisualSession for ProceduralNebulaVisual {
             "Params",
             (
                 self.density_scale,
-                0.0,
-                0.0,
+                0.0_f32,
+                0.0_f32,
                 self.star_brightness,
             ),
         );
