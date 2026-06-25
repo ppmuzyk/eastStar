@@ -814,16 +814,16 @@ float nebula_density(vec2 p, float id) {
 }
 
 vec3 nebula_palette(float t, float id) {
-    vec3 deep = vec3(0.006, 0.010, 0.030);
-    vec3 blue = vec3(0.035, 0.120, 0.360);
-    vec3 violet = vec3(0.180, 0.045, 0.320);
-    vec3 cyan = vec3(0.050, 0.360, 0.560);
+    vec3 deep = vec3(0.010, 0.018, 0.050);
+    vec3 blue = vec3(0.060, 0.180, 0.500);
+    vec3 violet = vec3(0.280, 0.080, 0.450);
+    vec3 cyan = vec3(0.080, 0.500, 0.750);
 
     float shift = 0.5 + 0.5 * sin(t * 6.2831853 + id * 1.71 + u_time * 0.045);
 
     vec3 c = mix(blue, violet, shift);
     c = mix(c, cyan, smoothstep(0.62, 1.0, t) * 0.45);
-    c = mix(deep, c, 0.82);
+    c = mix(deep, c, 0.50);
 
     return c;
 }
@@ -869,7 +869,7 @@ void main() {
 
     p -= center_drift;
 
-    vec3 color = vec3(0.002, 0.004, 0.012);
+    vec3 color = vec3(0.003, 0.006, 0.018);
 
     // Nebula pseudo-depth sheets.
     for (int i = 0; i < NEBULA_LAYERS; i++) {
@@ -900,7 +900,7 @@ void main() {
 
         vec3 layer_color = nebula_palette(d, id);
 
-        color += layer_color * d * weight * 0.34;
+        color += layer_color * d * weight * 0.50;
     }
 
     // Procedural star depth layers.
@@ -914,7 +914,7 @@ void main() {
         stars += star_layer(p, z, id);
     }
 
-    color += vec3(0.62, 0.72, 0.95) * stars * 0.65;
+    color += vec3(0.70, 0.80, 1.00) * stars * 1.00;
 
     // Soft edge darkening, but not a hard vignette.
     float r = length(p);
@@ -1003,7 +1003,7 @@ impl VisualSession for ProceduralNebulaVisual {
         material.set_uniform("u_resolution", vec2(width, height));
         material.set_uniform("u_time", self.time);
         material.set_uniform("u_speed", 1.0f32);
-        material.set_uniform("u_brightness", 0.62f32);
+        material.set_uniform("u_brightness", 0.90f32);
         material.set_uniform("u_seed", self.seed);
 
         gl_use_material(material);
