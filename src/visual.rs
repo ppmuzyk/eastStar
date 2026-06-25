@@ -745,8 +745,8 @@ uniform float u_speed;
 uniform float u_brightness;
 uniform float u_seed;
 
-#define NEBULA_LAYERS 5
-#define STAR_LAYERS 4
+#define NEBULA_LAYERS 6
+#define STAR_LAYERS 5
 
 float hash21(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
