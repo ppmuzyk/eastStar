@@ -849,8 +849,9 @@ float star_layer(vec2 p, float z, float id) {
 
     float star = exists * smoothstep(size, 0.0, d);
 
-    // Fade when the pseudo-depth layer resets.
-    float fade = smoothstep(0.03, 0.20, z) * (1.0 - smoothstep(0.80, 1.0, z));
+    float fade =
+        smoothstep(0.03, 0.20, z) *
+        (1.0 - smoothstep(0.80, 1.0, z));
 
     return star * fade * (1.0 - z * 0.35);
 }
@@ -861,7 +862,8 @@ void main() {
 
     float t = u_time;
 
-    // Moving vanishing point. This avoids a static center burn-in point.
+    // Moving vanishing point.
+    // This prevents a permanently static center point.
     vec2 center_drift = vec2(
         sin(t * 0.071 + u_seed) * 0.075,
         cos(t * 0.063 + u_seed * 0.7) * 0.060
@@ -875,29 +877,33 @@ void main() {
     for (int i = 0; i < NEBULA_LAYERS; i++) {
         float id = float(i);
 
-        // As time increases, z decreases, so each layer appears to expand toward camera.
+        // z moves from 0.0 to 1.0.
+        // With q = p / depth, larger z means the cloud layer expands outward.
         float z = fract(id / float(NEBULA_LAYERS) + t * u_speed * 0.045 + 10.0);
 
         float fade =
             smoothstep(0.02, 0.22, z) *
             (1.0 - smoothstep(0.78, 1.0, z));
 
-        // Near layers (z→1) get zoomed in (coords smaller, gas fills screen)
-        // Far layers (z→0) stay wide (coords larger, gas is small)
-        float zoom = 1.0 + z * 3.5;
-        vec2 q = p * zoom;
+        // Corrected direction:
+        // far layer: small depth -> more compact
+        // near layer: large depth -> expanded outward
+        float depth = 0.22 + z * 2.40;
+        vec2 q = p / depth;
 
+        // Gentle lateral drift, scaled by depth.
+        // Far layers move less; near layers move slightly more.
         q += vec2(
             sin(t * 0.031 + id * 1.9),
             cos(t * 0.027 + id * 2.6)
-        ) * 0.45;
+        ) * mix(0.18, 0.46, z);
 
         q = rot(t * 0.006 + id * 0.41) * q;
 
         float d = nebula_density(q, id);
 
-        // Make closer layers brighter but fade them out before reset.
-        float weight = fade * mix(1.25, 0.42, z);
+        // Nearer clouds are a bit stronger, but fade before reset.
+        float weight = fade * mix(0.48, 1.18, z);
 
         vec3 layer_color = nebula_palette(d, id);
 
@@ -917,12 +923,12 @@ void main() {
 
     color += vec3(0.70, 0.80, 1.00) * stars * 1.00;
 
-    // Soft edge darkening, but not a hard vignette.
+    // Soft edge darkening.
     float r = length(p);
     float vignette = 1.0 - smoothstep(1.10, 1.85, r) * 0.55;
     color *= vignette;
 
-    // Brightness cap for screensaver/burn-in friendliness.
+    // Brightness cap.
     color *= u_brightness;
 
     // Gentle gamma lift.
@@ -931,6 +937,8 @@ void main() {
     gl_FragColor = vec4(color, 1.0);
 }
 "#;
+
+
 
 
 
