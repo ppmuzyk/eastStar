@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="0.2.2"
+VERSION="0.3.0"
 ARCH="x86_64"
 BIN_DIR="target/release"
 ASSETS_DIR="assets"
