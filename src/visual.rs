@@ -876,13 +876,15 @@ void main() {
         float id = float(i);
 
         // As time increases, z decreases, so each layer appears to expand toward camera.
-        float z = fract(id / float(NEBULA_LAYERS) - t * u_speed * 0.045 + 10.0);
+        float z = fract(id / float(NEBULA_LAYERS) + t * u_speed * 0.045 + 10.0);
 
         float fade =
             smoothstep(0.02, 0.22, z) *
             (1.0 - smoothstep(0.78, 1.0, z));
 
-        float depth = 0.18 + z * 1.95;
+        // When z is small (far), depth is large → less expansion
+        // When z is large (near), depth is small → more expansion (flying forward)
+        float depth = 2.10 - z * 1.90;
 
         vec2 q = p / depth;
 
@@ -900,7 +902,7 @@ void main() {
 
         vec3 layer_color = nebula_palette(d, id);
 
-        color += layer_color * d * weight * 0.50;
+        color += layer_color * d * weight * 0.65;
     }
 
     // Procedural star depth layers.
@@ -909,7 +911,7 @@ void main() {
     for (int i = 0; i < STAR_LAYERS; i++) {
         float id = float(i);
 
-        float z = fract(id / float(STAR_LAYERS) - t * u_speed * 0.095 + 20.0);
+        float z = fract(id / float(STAR_LAYERS) + t * u_speed * 0.095 + 20.0);
 
         stars += star_layer(p, z, id);
     }
@@ -1003,7 +1005,7 @@ impl VisualSession for ProceduralNebulaVisual {
         material.set_uniform("u_resolution", vec2(width, height));
         material.set_uniform("u_time", self.time);
         material.set_uniform("u_speed", 1.0f32);
-        material.set_uniform("u_brightness", 0.90f32);
+        material.set_uniform("u_brightness", 1.10f32);
         material.set_uniform("u_seed", self.seed);
 
         gl_use_material(material);
