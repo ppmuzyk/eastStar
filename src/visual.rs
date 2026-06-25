@@ -844,10 +844,26 @@ float star_layer(vec2 p, float z, float id) {
 
     float exists = step(0.987, h);
 
-    float size = mix(0.075, 0.025, z);
-    float d = length(local);
+    // base star size
+    float base_size = mix(0.075, 0.025, z);
 
+    // distance from center — closer to edge = potentially bigger star
+    float edge_factor = smoothstep(0.35, 1.25, length(p));
+
+    // randomly only some stars get the edge size boost
+    float random_big = step(0.82, hash21(cell + vec2(91.7, id * 13.1)));
+
+    // subtle size multiplier near edges, only for some stars
+    float size_boost = 1.0 + edge_factor * random_big * 1.35;
+
+    float size = base_size * size_boost;
+
+    float d = length(local);
     float star = exists * smoothstep(size, 0.0, d);
+
+    // slight brightness boost for bigger edge stars
+    float brightness_boost = 1.0 + edge_factor * random_big * 0.35;
+    star *= brightness_boost;
 
     float fade =
         smoothstep(0.03, 0.20, z) *
