@@ -2,7 +2,6 @@ use eaststar::platform::{GnomeIdleMonitor, IdleMonitor};
 use eaststar::settings::AppSettings;
 use std::io::Write;
 use std::process::{Child, Command};
-use std::process::Command as SysCommand;
 use std::time::Instant;
 
 struct SaverState {
@@ -23,43 +22,6 @@ macro_rules! log_err {
         eprintln!($($arg)*);
         let _ = std::io::stderr().flush();
     }};
-}
-
-fn is_session_locked() -> bool {
-    // Check via logind — most reliable on modern GNOME
-    if let Ok(output) = SysCommand::new("loginctl")
-        .args(["show-session", "self", "-p", "LockedHint"])
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if stdout.contains("LockedHint=yes") {
-            return true;
-        }
-    }
-
-    // Fallback: check GNOME ScreenSaver D-Bus active state
-    if let Ok(output) = SysCommand::new("gdbus")
-        .args([
-            "call", "--session",
-            "--dest", "org.gnome.ScreenSaver",
-            "--object-path", "/org/gnome/ScreenSaver",
-            "--method", "org.gnome.ScreenSaver.GetActive",
-        ])
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if stdout.contains("true") {
-            return true;
-        }
-    }
-
-    false
-}
-
-fn kill_saver(child: &mut Child) {
-    log!("eastStar daemon: killing saver (session unlocked)");
-    let _ = child.kill();
-    let _ = child.wait();
 }
 
 fn main() {
@@ -94,18 +56,8 @@ fn main() {
             settings = current_settings;
         }
 
-        // Check if the session was unlocked while saver is running
-        let currently_locked = is_session_locked();
-
         // Check if the saver process has exited
         if let Some(ref mut state) = saver_state {
-            // When session transitions from locked to unlocked, kill the saver
-            if !currently_locked {
-                log!("eastStar daemon: session unlocked — dismissing saver");
-                kill_saver(&mut state.child);
-                saver_state = None;
-                continue;
-            }
             match state.child.try_wait() {
                 Ok(Some(status)) => {
                     log!("eastStar daemon: saver exited ({status})");
@@ -137,12 +89,6 @@ fn main() {
         let idle_seconds = idle_duration.as_secs();
 
         if idle_seconds >= settings.saver_delay_seconds {
-            // Don't launch saver while session is locked — the lock screen
-            // is already visible and the saver would be hidden behind it.
-            // After unlock, the idle time will reset naturally.
-            if currently_locked {
-                continue;
-            }
             // Don't launch saver if something is inhibiting idle
             // (e.g. fullscreen video, active presentation)
             if idle_monitor.is_inhibited() {
