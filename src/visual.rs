@@ -745,7 +745,7 @@ uniform float u_speed;
 uniform float u_brightness;
 uniform float u_seed;
 
-#define NEBULA_LAYERS 8
+#define NEBULA_LAYERS 10
 #define STAR_LAYERS 7
 
 float hash21(vec2 p) {
@@ -784,7 +784,7 @@ float fbm(vec2 p) {
 
     mat2 m = mat2(
         0.80, -0.60,
-        0.60, 0.80
+        0.60,  0.80
     );
 
     for (int i = 0; i < 4; i++) {
@@ -797,8 +797,8 @@ float fbm(vec2 p) {
 }
 
 float layer_fade(float life) {
-    float birth = smoothstep(0.00, 0.34, life);
-    float death = 1.0 - smoothstep(0.62, 1.00, life);
+    float birth = smoothstep(0.00, 0.20, life);
+    float death = 1.0 - smoothstep(0.82, 1.00, life);
     return birth * death;
 }
 
@@ -859,7 +859,6 @@ float star_layer(vec2 p, float z, float id) {
 
     float base_size = mix(0.018, 0.034, z);
 
-    // More edge stars get the size boost
     float random_big = step(0.78, hash21(cell + vec2(91.7, id * 13.1)));
     float size_boost = 1.0 + edge_factor * random_big * 1.85;
 
@@ -873,7 +872,9 @@ float star_layer(vec2 p, float z, float id) {
 
     float fade = layer_fade(z);
 
-    return star * fade * (1.0 - z * 0.25);
+    // Slower, softer twinkle instead of fast popping
+    float twinkle = 0.92 + 0.08 * sin(u_time * 0.55 + h * 41.0 + id * 2.7);
+    return star * fade * (1.0 - z * 0.20) * twinkle;
 }
 
 void main() {
@@ -891,44 +892,57 @@ void main() {
 
     float radial = length(p);
 
-    float center_mask = 1.0 - smoothstep(0.25, 1.35, radial);
-    center_mask = pow(center_mask, 1.25);
-    center_mask = mix(0.28, 1.0, center_mask);
-
     vec3 color = vec3(0.003, 0.006, 0.018);
 
     // Nebula / dust layers.
     for (int i = 0; i < NEBULA_LAYERS; i++) {
         float id = float(i);
 
-        // Stable id — no cycle reseed to avoid popping
-        float z = fract(id / float(NEBULA_LAYERS) + t * u_speed * 0.032 + 10.0);
+        // Slower layer travel to make the motion feel deeper and less "busy".
+        float z = fract(id / float(NEBULA_LAYERS) + t * u_speed * 0.020 + 10.0);
 
         float fade = layer_fade(z);
 
-        float apparent_scale = mix(0.20, 4.10, z);
+        // 0 = far away in the center, 1 = close and expanded toward edges
+        float depth = z;
+
+        // Stronger outward expansion
+        float apparent_scale = mix(0.18, 5.80, depth * depth);
 
         vec2 q = p / apparent_scale;
 
+        // Gentle organic drift
         q += vec2(
-            sin(t * 0.004 + id * 1.70),
-            cos(t * 0.003 + id * 2.30)
-        ) * 0.028;
+            sin(t * 0.0030 + id * 1.73),
+            cos(t * 0.0025 + id * 2.11)
+        ) * 0.024;
 
-        q = rot(id * 0.47 + t * 0.0010) * q;
+        q = rot(id * 0.47 + t * 0.0008) * q;
 
         float raw_d = nebula_density(q, id);
 
-        float layer_mask = pow(center_mask, mix(0.85, 1.35, fract(id * 0.37 + u_seed)));
-        float d = raw_d * layer_mask;
+        // Far layers: concentrated in the center.
+        // Near layers: much less center-constrained, so they reach the edges.
+        float far_center = 1.0 - smoothstep(0.18, 1.10, radial);
+        float center_bias = mix(1.0, mix(0.20, 1.0, far_center), 1.0 - depth);
 
-        float weight = fade * mix(0.65, 1.45, z) * layer_mask;
+        // As clouds get closer, let them expand outward and thin a bit.
+        float near_edge_soften =
+            1.0 - smoothstep(1.15, 1.95, radial) * smoothstep(0.55, 1.0, depth) * 0.45;
+
+        float d = raw_d * center_bias * near_edge_soften;
+
+        // Nearer dust should be more expanded but a bit thinner,
+        // so it doesn't become a bright blob.
+        float thickness = mix(1.15, 0.58, depth);
+        float weight = fade * thickness * mix(0.85, 1.10, raw_d);
 
         vec3 layer_color = nebula_palette(raw_d, id);
 
-        layer_color *= mix(0.76, 1.0, center_mask);
+        // Slightly dim far edges, but don't collapse everything into the center.
+        layer_color *= mix(0.70, 1.0, far_center * (1.0 - depth * 0.45));
 
-        color += layer_color * d * weight * 0.82;
+        color += layer_color * d * weight * 0.90;
     }
 
     // Stars.
@@ -937,7 +951,8 @@ void main() {
     for (int i = 0; i < STAR_LAYERS; i++) {
         float id = float(i);
 
-        float z = fract(id / float(STAR_LAYERS) + t * u_speed * 0.095 + 20.0);
+        // Much slower star recycle — calmer blinking
+        float z = fract(id / float(STAR_LAYERS) + t * u_speed * 0.045 + 20.0);
 
         stars += star_layer(p, z, id);
     }
@@ -956,6 +971,8 @@ void main() {
     gl_FragColor = vec4(color, 1.0);
 }
 "#;
+
+
 
 
 
