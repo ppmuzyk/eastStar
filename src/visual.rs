@@ -187,6 +187,7 @@ pub fn create_visual_session(effect: VisualEffect) -> Box<dyn VisualSession> {
         VisualEffect::NebulaFlight => Box::new(NebulaFlightVisual::new()),
         VisualEffect::Pipes => Box::new(PipesVisual::new()),
         VisualEffect::Plasma => Box::new(PlasmaVisual::new()),
+        VisualEffect::ProceduralNebula => Box::new(ProceduralNebulaVisual::new()),
     }
 }
 
@@ -713,6 +714,251 @@ fn inside_grid(point: IVec3, size: IVec3) -> bool {
         && point.y < size.y
         && point.z < size.z
 }
+
+
+// === Procedural Nebula (multi-layer parallax, fully GPU-generated) ===
+
+const PROCEDURAL_NEBULA_VERTEX: &str = r#"#version 100
+attribute vec3 position;
+attribute vec2 texcoord;
+attribute vec4 color0;
+
+varying lowp vec2 uv;
+
+uniform mat4 Model;
+uniform mat4 Projection;
+
+void main() {
+    gl_Position = Projection * Model * vec4(position, 1.0);
+    uv = texcoord;
+}
+"#;
+
+const PROCEDURAL_NEBULA_FRAGMENT: &str = r#"#version 100
+precision highp float;
+
+varying vec2 uv;
+
+uniform vec2 Resolution;
+uniform float Time;
+uniform float Brightness;
+uniform vec4 Params;
+
+float hash21(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash21(i);
+    float b = hash21(i + vec2(1.0, 0.0));
+    float c = hash21(i + vec2(0.0, 1.0));
+    float d = hash21(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+float fbm(vec2 p_in) {
+    vec2 p = p_in;
+    float value = 0.0;
+    float amp = 0.5;
+    float freq = 1.0;
+    for (int i = 0; i < 5; i++) {
+        value += amp * noise(p * freq);
+        p = vec2(
+            0.80 * p.x - 0.60 * p.y,
+            0.60 * p.x + 0.80 * p.y
+        ) * 2.03 + vec2(11.7, 4.3);
+        amp *= 0.48;
+        freq *= 2.03;
+    }
+    return value;
+}
+
+float nebula_layer(vec2 p, float layer_idx, float time) {
+    float depth = 0.15 + layer_idx * 0.18;
+    float speed = 0.04 + depth * 0.32;
+    vec2 drift = vec2(time * speed * 0.7, time * speed * 0.5);
+    float zoom = 0.6 + depth * 2.2;
+    vec2 sp = (p * zoom + drift) * (1.0 + layer_idx * 0.15);
+    vec2 warp = vec2(
+        fbm(sp * 0.7 + vec2(time * 0.03, 0.0)),
+        fbm(sp * 0.7 + vec2(5.2, time * 0.02))
+    );
+    vec2 wp = sp + (warp - vec2(0.5)) * (0.3 + depth * 0.7);
+    float f = fbm(wp * (0.5 + depth * 0.4));
+    float threshold = 0.35 + depth * 0.15;
+    f = smoothstep(threshold, threshold + 0.35, f);
+    float depth_fade = 1.0 - depth * 0.55;
+    return f * depth_fade;
+}
+
+vec3 nebula_color(vec2 p_raw, float accumulated_density, float time) {
+    float shift = fbm(p_raw * 0.09 + vec2(time * 0.01, time * 0.013));
+    vec3 deep   = vec3(0.02, 0.03, 0.09);
+    vec3 blue   = vec3(0.04, 0.08, 0.28);
+    vec3 violet = vec3(0.16, 0.04, 0.28);
+    vec3 cyan   = vec3(0.06, 0.32, 0.52);
+    vec3 pink   = vec3(0.28, 0.08, 0.22);
+    vec3 pale   = vec3(0.30, 0.42, 0.68);
+    vec3 c = mix(deep, blue, shift * 0.7);
+    float d = accumulated_density;
+    c = mix(c, violet, smoothstep(0.08, 0.22, d) * 0.4);
+    c = mix(c, cyan,   smoothstep(0.18, 0.35, d) * 0.5);
+    c = mix(c, pink,   smoothstep(0.28, 0.45, d) * 0.3);
+    c = mix(c, pale,   smoothstep(0.40, 0.65, d) * 0.35);
+    return c;
+}
+
+float star_hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+vec3 star_field(vec2 uv_raw, float time) {
+    vec2 p = uv_raw * 280.0;
+    vec2 cell = floor(p);
+    vec2 local = fract(p) - 0.5;
+    float h = star_hash(cell + vec2(time * 0.01, 0.0));
+    float star = 0.0;
+    if (h > 0.993) {
+        float dist = length(local);
+        star = smoothstep(0.07, 0.0, dist);
+    } else if (h > 0.978) {
+        float dist = length(local);
+        star = smoothstep(0.04, 0.0, dist) * 0.4;
+    }
+    float twinkle = 0.7 + 0.3 * sin(time * 3.5 + h * 200.0);
+    float color_seed = star_hash(cell + 0.5);
+    vec3 star_color = mix(
+        vec3(0.55, 0.65, 0.90),
+        vec3(0.85, 0.82, 0.75),
+        color_seed * 0.6
+    );
+    return star_color * star * twinkle * Params.w;
+}
+
+void main() {
+    vec2 res = Resolution;
+    float time = Time;
+    vec2 uv_norm = uv * 2.0 - vec2(1.0, 1.0);
+    uv_norm.x *= res.x / max(res.y, 1.0);
+    vec2 p = uv_norm;
+    float LAYER_COUNT = 5.0;
+    vec3 color = vec3(0.0);
+    for (float layer = 0.0; layer < LAYER_COUNT; layer += 1.0) {
+        float layer_norm = layer / max(LAYER_COUNT - 1.0, 1.0);
+        float density = nebula_layer(p, layer_norm, time);
+        density *= Params.x;
+        vec3 layer_color = nebula_color(p, density, time + layer_norm * 1.7);
+        float depth_weight = 0.55 + layer_norm * 0.45;
+        color = color + layer_color * density * depth_weight * 0.42;
+    }
+    color = color / (color + vec3(1.0));
+    vec3 stars = star_field(uv_norm + vec2(time * 0.015, time * 0.008), time);
+    color = color + stars;
+    color *= Brightness;
+    float vignette = 1.0 - smoothstep(0.5, 1.4, length(uv_norm)) * 0.35;
+    color *= vignette;
+    gl_FragColor = vec4(color, 1.0);
+}
+"#;
+
+pub struct ProceduralNebulaVisual {
+    material: Option<Material>,
+    time: f32,
+    reseed_timer: f32,
+    density_scale: f32,
+    star_brightness: f32,
+}
+
+impl ProceduralNebulaVisual {
+    pub fn new() -> Self {
+        let visual = Self {
+            material: None,
+            time: gen_range(0.0, 500.0),
+            reseed_timer: 0.0,
+            density_scale: 0.70 + gen_range(0.0, 1.0) * 0.25,
+            star_brightness: 0.35 + gen_range(0.0, 1.0) * 0.25,
+        };
+        visual
+    }
+
+    fn ensure_material(&mut self) {
+        if self.material.is_some() {
+            return;
+        }
+
+        let material = load_material(
+            ShaderSource::Glsl {
+                vertex: PROCEDURAL_NEBULA_VERTEX,
+                fragment: PROCEDURAL_NEBULA_FRAGMENT,
+            },
+            MaterialParams {
+                pipeline_params: PipelineParams::default(),
+                uniforms: vec![
+                    UniformDesc::new("Resolution", UniformType::Float2),
+                    UniformDesc::new("Time", UniformType::Float1),
+                    UniformDesc::new("Brightness", UniformType::Float1),
+                    UniformDesc::new("Params", UniformType::Float4),
+                ],
+                ..Default::default()
+            },
+        )
+        .ok();
+
+        self.material = material;
+    }
+
+    fn reseed_params(&mut self) {
+        self.density_scale = 0.65 + gen_range(0.0, 1.0) * 0.30;
+        self.star_brightness = 0.30 + gen_range(0.0, 1.0) * 0.30;
+    }
+}
+
+impl VisualSession for ProceduralNebulaVisual {
+    fn prepare(&mut self, _width: f32, _height: f32) {
+        self.ensure_material();
+        self.reseed_timer = gen_range(0.0, 360.0);
+    }
+
+    fn update(&mut self, _width: f32, _height: f32, dt: f32) {
+        self.time += dt;
+        self.reseed_timer += dt;
+
+        if self.reseed_timer >= 600.0 {
+            self.reseed_timer = 0.0;
+            self.reseed_params();
+        }
+    }
+
+    fn draw(&self, width: f32, height: f32) {
+        clear_background(Color::from_rgba(2, 3, 9, 255));
+
+        let Some(material) = &self.material else {
+            return;
+        };
+
+        let brightness = 0.55;
+        material.set_uniform("Resolution", (width, height));
+        material.set_uniform("Time", self.time);
+        material.set_uniform("Brightness", brightness);
+        material.set_uniform(
+            "Params",
+            (
+                self.density_scale,
+                0.0,
+                0.0,
+                self.star_brightness,
+            ),
+        );
+
+        gl_use_material(material);
+        draw_rectangle(0.0, 0.0, width, height, WHITE);
+        gl_use_default_material();
+    }
+}
+
 
 pub struct PipesVisual {
     world: PipeWorld,

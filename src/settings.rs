@@ -12,16 +12,18 @@ pub enum VisualEffect {
     NebulaFlight,
     Pipes,
     Plasma,
+    ProceduralNebula,
 }
 
 impl VisualEffect {
-    pub const ALL: [Self; 3] = [Self::NebulaFlight, Self::Pipes, Self::Plasma];
+    pub const ALL: [Self; 4] = [Self::NebulaFlight, Self::Pipes, Self::Plasma, Self::ProceduralNebula];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::NebulaFlight => "Nebula Flight",
             Self::Pipes => "Pipes",
             Self::Plasma => "Fractal Plasma",
+            Self::ProceduralNebula => "Procedural Nebula",
         }
     }
 
@@ -30,6 +32,7 @@ impl VisualEffect {
             "nebula-flight" => Some(Self::NebulaFlight),
             "pipes" | "warp-drive" | "storm-front" => Some(Self::Pipes),
             "plasma" | "fractal-plasma" => Some(Self::Plasma),
+            "procedural-nebula" => Some(Self::ProceduralNebula),
             _ => None,
         }
     }
@@ -39,6 +42,7 @@ impl VisualEffect {
             Self::NebulaFlight => "nebula-flight",
             Self::Pipes => "pipes",
             Self::Plasma => "plasma",
+            Self::ProceduralNebula => "procedural-nebula",
         }
     }
 }
