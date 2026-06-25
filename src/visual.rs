@@ -796,6 +796,12 @@ float fbm(vec2 p) {
     return v;
 }
 
+float layer_fade(float z) {
+    return
+        smoothstep(0.02, 0.16, z) *
+        (1.0 - smoothstep(0.84, 1.0, z));
+}
+
 float nebula_density(vec2 p, float id) {
     vec2 q = vec2(
         fbm(p * 0.70 + vec2(id * 11.3, id * 3.7)),
@@ -830,22 +836,29 @@ vec3 nebula_palette(float t, float id) {
 
 float star_layer(vec2 p, float z, float id) {
     float radial = length(p);
-
-    // 0.0 near center, 1.0 near edges.
     float edge_factor = smoothstep(0.35, 1.35, radial);
 
-    float depth = 0.14 + z * 2.45;
+    /*
+     The whole layer expands with one coherent scale.
+     This naturally makes movement faster near edges,
+     because farther-from-center pixels move more in screen space.
+    */
+    float apparent_scale = mix(0.13, 3.65, z);
 
-    // Stars expand outward faster near screen edges.
-    float edge_speed_boost = 1.0 + edge_factor * z * 1.35;
-
-    float accelerated_depth = depth * edge_speed_boost;
-
-    vec2 q = p / accelerated_depth;
+    vec2 q = p / apparent_scale;
     q = rot(id * 0.73) * q;
 
-    float scale = mix(72.0, 30.0, z);
-    vec2 g = q * scale;
+    /*
+     Star grid scale is stable per layer.
+     It no longer changes continuously with z.
+    */
+    float grid_scale = mix(
+        46.0,
+        78.0,
+        hash21(vec2(id * 17.31, u_seed * 9.17))
+    );
+
+    vec2 g = q * grid_scale;
 
     vec2 cell = floor(g);
     vec2 local = fract(g) - 0.5;
@@ -853,12 +866,16 @@ float star_layer(vec2 p, float z, float id) {
     float h = hash21(cell + vec2(id * 31.7, u_seed * 19.1));
     float exists = step(0.987, h);
 
-    float base_size = mix(0.075, 0.025, z);
+    /*
+     Stars become slightly larger as they approach,
+     but without fighting the layer expansion.
+    */
+    float base_size = mix(0.018, 0.034, z);
 
-    // Only some stars become larger near edges.
+    // Random larger stars near edges.
     float random_big = step(0.82, hash21(cell + vec2(91.7, id * 13.1)));
+    float size_boost = 1.0 + edge_factor * random_big * 1.45;
 
-    float size_boost = 1.0 + edge_factor * random_big * 1.35;
     float size = base_size * size_boost;
 
     float d = length(local);
@@ -867,11 +884,9 @@ float star_layer(vec2 p, float z, float id) {
     float brightness_boost = 1.0 + edge_factor * random_big * 0.35;
     star *= brightness_boost;
 
-    float fade =
-        smoothstep(0.03, 0.20, z) *
-        (1.0 - smoothstep(0.80, 1.0, z));
+    float fade = layer_fade(z);
 
-    return star * fade * (1.0 - z * 0.35);
+    return star * fade * (1.0 - z * 0.25);
 }
 
 void main() {
@@ -890,16 +905,14 @@ void main() {
 
     float radial = length(p);
 
-    // 0.0 near center, 1.0 near edges.
-    float edge_factor = smoothstep(0.35, 1.35, radial);
-
-    // Center dust mask:
-    // dense in center, weaker near edges.
+    /*
+     Center mask:
+     dust is dense in the center and weaker near the edges,
+     but not fully removed near edges.
+    */
     float center_mask = 1.0 - smoothstep(0.25, 1.35, radial);
-    center_mask = pow(center_mask, 1.35);
-
-    // Keep a little dust near edges so they do not become empty.
-    center_mask = mix(0.18, 1.0, center_mask);
+    center_mask = pow(center_mask, 1.25);
+    center_mask = mix(0.28, 1.0, center_mask);
 
     vec3 color = vec3(0.003, 0.006, 0.018);
 
@@ -907,46 +920,52 @@ void main() {
     for (int i = 0; i < NEBULA_LAYERS; i++) {
         float id = float(i);
 
-        // z grows over time, causing center-to-edge expansion.
-        float z = fract(id / float(NEBULA_LAYERS) + t * u_speed * 0.045 + 10.0);
+        /*
+         Dust speed is now much closer to star speed.
+         Old value was 0.045, too slow.
+        */
+        float z = fract(id / float(NEBULA_LAYERS) + t * u_speed * 0.090 + 10.0);
 
-        float fade =
-            smoothstep(0.02, 0.22, z) *
-            (1.0 - smoothstep(0.78, 1.0, z));
+        float fade = layer_fade(z);
 
-        float depth = 0.22 + z * 2.40;
+        /*
+         Use one coherent expanding scale.
+         No pixel-local edge_speed_boost.
+         The expansion itself naturally creates faster apparent motion near edges.
+        */
+        float apparent_scale = mix(0.20, 4.10, z);
 
-        // Dust movement is accelerated near the screen edges.
-        // Center stays calmer, edges move faster.
-        float edge_speed_boost = 1.0 + edge_factor * z * 1.15;
+        vec2 q = p / apparent_scale;
 
-        float accelerated_depth = depth * edge_speed_boost;
-
-        vec2 q = p / accelerated_depth;
-
-        // Gentle layer drift, also slightly stronger near edges.
+        /*
+         Drift is intentionally smaller now.
+         Too much drift competes with forward travel.
+        */
         q += vec2(
-            sin(t * 0.031 + id * 1.9),
-            cos(t * 0.027 + id * 2.6)
-        ) * mix(0.18, 0.46, z) * mix(1.0, 1.25, edge_factor);
+            sin(t * 0.026 + id * 1.9),
+            cos(t * 0.023 + id * 2.6)
+        ) * 0.18;
 
-        q = rot(t * 0.006 + id * 0.41) * q;
+        q = rot(t * 0.0045 + id * 0.41) * q;
 
-        float d = nebula_density(q, id);
+        float raw_d = nebula_density(q, id);
 
         // Denser center, thinner edges.
-        d *= center_mask;
+        float layer_mask = pow(center_mask, mix(0.85, 1.35, fract(id * 0.37 + u_seed)));
+        float d = raw_d * layer_mask;
 
-        float layer_mask = pow(center_mask, mix(0.9, 1.6, fract(id * 0.37 + u_seed)));
+        /*
+         Nearer dust becomes stronger, but smoothly.
+         This makes dust movement more visible without sudden speed jumps.
+        */
+        float weight = fade * mix(0.65, 1.45, z) * layer_mask;
 
-        float weight = fade * mix(0.48, 1.18, z) * layer_mask;
+        vec3 layer_color = nebula_palette(raw_d, id);
 
-        vec3 layer_color = nebula_palette(d, id);
+        // Slightly darker near edges.
+        layer_color *= mix(0.76, 1.0, center_mask);
 
-        // Slightly weaker/darker dust near edges.
-        layer_color *= mix(0.72, 1.0, center_mask);
-
-        color += layer_color * d * weight * 0.65;
+        color += layer_color * d * weight * 0.82;
     }
 
     // Stars.
@@ -955,6 +974,10 @@ void main() {
     for (int i = 0; i < STAR_LAYERS; i++) {
         float id = float(i);
 
+        /*
+         Star speed kept high, but smoother because star_layer no longer
+         changes the grid scale with z.
+        */
         float z = fract(id / float(STAR_LAYERS) + t * u_speed * 0.095 + 20.0);
 
         stars += star_layer(p, z, id);
@@ -963,7 +986,7 @@ void main() {
     color += vec3(0.70, 0.80, 1.00) * stars * 1.00;
 
     // Soft edge darkening.
-    float vignette = 1.0 - smoothstep(1.10, 1.85, radial) * 0.55;
+    float vignette = 1.0 - smoothstep(1.10, 1.85, radial) * 0.50;
     color *= vignette;
 
     color *= u_brightness;
@@ -972,6 +995,8 @@ void main() {
     gl_FragColor = vec4(color, 1.0);
 }
 "#;
+
+
 
 
 
