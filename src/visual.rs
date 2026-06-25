@@ -403,8 +403,8 @@ impl VisualSession for NebulaFlightVisual {
             );
         };
 
-        draw_fullscreen_layer(2.0_f32.powf(-zoom_phase), 0.22 * (1.0 - phase_mix));
-        draw_fullscreen_layer(2.0_f32.powf(1.0 - zoom_phase), 0.22 * phase_mix);
+        draw_fullscreen_layer(2.0_f32.powf(-zoom_phase), 0.26 * (1.0 - phase_mix));
+        draw_fullscreen_layer(2.0_f32.powf(1.0 - zoom_phase), 0.26 * phase_mix);
 
         draw_rectangle(
             0.0,
