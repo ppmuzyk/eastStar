@@ -5,7 +5,7 @@
 ## Features
 
 - Detects user inactivity on GNOME via Mutter's idle monitor
-- Fullscreen animated visuals: Nebula Flight, Pipes (3D), Fractal Plasma
+- Fullscreen animated visuals: Nebula Flight (fully procedural shader), Pipes (3D), Fractal Plasma
 - OLED-safe dark visuals with drifting bright areas
 - Configurable activation delay and optional auto-lock
 - Background daemon runs automatically — no need to keep any window open
@@ -17,12 +17,12 @@ Download the latest package from [GitHub Releases](https://github.com/ppmuzyk/ea
 
 **Fedora/RHEL:**
 ```bash
-sudo rpm -i eaststar-0.2.0-1.x86_64.rpm
+sudo rpm -i eaststar-0.3.0-1.x86_64.rpm
 ```
 
 **Debian/Ubuntu:**
 ```bash
-sudo dpkg -i eaststar_0.2.0-1_amd64.deb
+sudo dpkg -i eaststar_0.3.0-1_amd64.deb
 ```
 
 The daemon starts automatically after installation if you're currently logged in. Otherwise it starts on next login.
@@ -55,7 +55,7 @@ Preferences panel ──writes──→ settings.conf ──reads──→ Daemo
 |---------|---------|-------|
 | Activation delay | 180s (3 min) | 30–3600s |
 | Lock after saver | 0 (disabled) | 0–7200s |
-| Visual effect | Nebula Flight | Nebula Flight / Pipes / Fractal Plasma |
+| Visual effect | Nebula Flight (procedural) | Nebula Flight / Pipes / Fractal Plasma |
 
 ## Managing the Daemon
 

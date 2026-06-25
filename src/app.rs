@@ -1,7 +1,7 @@
 use crate::lock::{SessionLocker, SystemLocker};
 use crate::platform::{DesktopTarget, GnomeIdleMonitor, IdleMonitor};
 use crate::settings::{config_path, AppSettings};
-use crate::visual::{StarfieldVisual, VisualSession};
+use crate::visual::{NebulaFlightVisual, VisualSession};
 use macroquad::prelude::*;
 use macroquad::window::set_fullscreen;
 use std::path::PathBuf;
@@ -51,7 +51,7 @@ impl App {
         Self {
             desktop: DesktopTarget::GnomeWayland,
             idle_monitor: Box::new(GnomeIdleMonitor::new()),
-            visual_session: Box::new(StarfieldVisual::new()),
+            visual_session: Box::new(NebulaFlightVisual::new()),
             locker: Box::new(SystemLocker),
             settings,
             settings_path,

@@ -45,6 +45,19 @@ Target behavior:
 - saver dismissal happens on user activity and hands control back cleanly
 
 ### 4. Platform adapters
+### 5. Visual Effects Architecture (v0.3.0+)
+
+Visual effects are modularized into separate files under `src/visual/`:
+
+| Module | Effect | Approach |
+|--------|--------|----------|
+| `nebula.rs` | Nebula Flight | Fully procedural GPU shader — 10 pseudo-depth layers of domain-warped fBM noise with parallax starfield. No textures. |
+| `plasma.rs` | Fractal Plasma | Single-layer 2D fBM shader with time-varying palette. |
+| `pipes.rs` | Pipes | CPU-driven 3D grid simulation, projected to 2D with perspective camera. |
+
+The `mod.rs` provides the `VisualSession` trait and `create_visual_session()` factory.
+
+
 
 The codebase separates generic application flow from GNOME-specific behavior so KDE can be added later without rewriting the core app flow.
 
@@ -64,7 +77,7 @@ Library modules:
 - `app.rs` — legacy macroquad orchestration prototype
 - `platform/` — desktop/session integration (idle monitor via DBus)
 - `settings/` — config load/save from `~/.config/eaststar/settings.conf`
-- `visual/` — rendering and animation logic (Starfield, Pipes, Plasma)
+- `visual/` — rendering and animation logic (procedural nebula, pipes, plasma), each in its own module
 - `lock/` — lock coordination API (loginctl, DBus, xdg-screensaver fallbacks)
 - `saver.rs` + `src/bin/eaststar-saver.rs` — fullscreen saver runtime
 
