@@ -882,11 +882,10 @@ void main() {
             smoothstep(0.02, 0.22, z) *
             (1.0 - smoothstep(0.78, 1.0, z));
 
-        // When z is small (far), depth is large → less expansion
-        // When z is large (near), depth is small → more expansion (flying forward)
-        float depth = 2.10 - z * 1.90;
-
-        vec2 q = p / depth;
+        // Near layers (z→1) get zoomed in (coords smaller, gas fills screen)
+        // Far layers (z→0) stay wide (coords larger, gas is small)
+        float zoom = 1.0 + z * 3.5;
+        vec2 q = p * zoom;
 
         q += vec2(
             sin(t * 0.031 + id * 1.9),
