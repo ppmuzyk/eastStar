@@ -788,20 +788,20 @@ float nebula_layer(vec2 p, float layer_idx, float time) {
     );
     vec2 wp = sp + (warp - vec2(0.5)) * (0.3 + depth * 0.7);
     float f = fbm(wp * (0.5 + depth * 0.4));
-    float threshold = 0.35 + depth * 0.15;
-    f = smoothstep(threshold, threshold + 0.35, f);
+    float threshold = 0.22 + depth * 0.12;
+    f = smoothstep(threshold, threshold + 0.40, f);
     float depth_fade = 1.0 - depth * 0.55;
     return f * depth_fade;
 }
 
 vec3 nebula_color(vec2 p_raw, float accumulated_density, float time) {
     float shift = fbm(p_raw * 0.09 + vec2(time * 0.01, time * 0.013));
-    vec3 deep   = vec3(0.02, 0.03, 0.09);
-    vec3 blue   = vec3(0.04, 0.08, 0.28);
-    vec3 violet = vec3(0.16, 0.04, 0.28);
-    vec3 cyan   = vec3(0.06, 0.32, 0.52);
-    vec3 pink   = vec3(0.28, 0.08, 0.22);
-    vec3 pale   = vec3(0.30, 0.42, 0.68);
+    vec3 deep   = vec3(0.04, 0.06, 0.18);
+    vec3 blue   = vec3(0.08, 0.16, 0.50);
+    vec3 violet = vec3(0.30, 0.10, 0.48);
+    vec3 cyan   = vec3(0.12, 0.55, 0.80);
+    vec3 pink   = vec3(0.45, 0.15, 0.35);
+    vec3 pale   = vec3(0.50, 0.65, 0.90);
     vec3 c = mix(deep, blue, shift * 0.7);
     float d = accumulated_density;
     c = mix(c, violet, smoothstep(0.08, 0.22, d) * 0.4);
@@ -852,9 +852,9 @@ void main() {
         density *= Params.x;
         vec3 layer_color = nebula_color(p, density, time + layer_norm * 1.7);
         float depth_weight = 0.55 + layer_norm * 0.45;
-        color = color + layer_color * density * depth_weight * 0.42;
+        color = color + layer_color * density * depth_weight * 0.65;
     }
-    color = color / (color + vec3(1.0));
+    color = color / (color + vec3(1.5));
     vec3 stars = star_field(uv_norm + vec2(time * 0.015, time * 0.008), time);
     color = color + stars;
     color *= Brightness;
@@ -878,8 +878,8 @@ impl ProceduralNebulaVisual {
             material: None,
             time: gen_range(0.0, 500.0),
             reseed_timer: 0.0,
-            density_scale: 0.70 + gen_range(0.0, 1.0) * 0.25,
-            star_brightness: 0.35 + gen_range(0.0, 1.0) * 0.25,
+            density_scale: 1.10 + gen_range(0.0, 1.0) * 0.40,
+            star_brightness: 0.60 + gen_range(0.0, 1.0) * 0.40,
         };
         visual
     }
@@ -911,8 +911,8 @@ impl ProceduralNebulaVisual {
     }
 
     fn reseed_params(&mut self) {
-        self.density_scale = 0.65 + gen_range(0.0, 1.0) * 0.30;
-        self.star_brightness = 0.30 + gen_range(0.0, 1.0) * 0.30;
+        self.density_scale = 1.00 + gen_range(0.0, 1.0) * 0.50;
+        self.star_brightness = 0.50 + gen_range(0.0, 1.0) * 0.50;
     }
 }
 
@@ -939,7 +939,7 @@ impl VisualSession for ProceduralNebulaVisual {
             return;
         };
 
-        let brightness: f32 = 0.55;
+        let brightness: f32 = 0.85;
         material.set_uniform("Resolution", (width, height));
         material.set_uniform("Time", self.time);
         material.set_uniform("Brightness", brightness);
