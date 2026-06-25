@@ -784,7 +784,7 @@ float fbm(vec2 p) {
 
     mat2 m = mat2(
         0.80, -0.60,
-        0.60,  0.80
+        0.60, 0.80
     );
 
     for (int i = 0; i < 4; i++) {
@@ -829,9 +829,19 @@ vec3 nebula_palette(float t, float id) {
 }
 
 float star_layer(vec2 p, float z, float id) {
+    float radial = length(p);
+
+    // 0.0 near center, 1.0 near edges.
+    float edge_factor = smoothstep(0.35, 1.35, radial);
+
     float depth = 0.14 + z * 2.45;
 
-    vec2 q = p / depth;
+    // Stars expand outward faster near screen edges.
+    float edge_speed_boost = 1.0 + edge_factor * z * 1.35;
+
+    float accelerated_depth = depth * edge_speed_boost;
+
+    vec2 q = p / accelerated_depth;
     q = rot(id * 0.73) * q;
 
     float scale = mix(72.0, 30.0, z);
@@ -841,27 +851,19 @@ float star_layer(vec2 p, float z, float id) {
     vec2 local = fract(g) - 0.5;
 
     float h = hash21(cell + vec2(id * 31.7, u_seed * 19.1));
-
     float exists = step(0.987, h);
 
-    // base star size
     float base_size = mix(0.075, 0.025, z);
 
-    // distance from center — closer to edge = potentially bigger star
-    float edge_factor = smoothstep(0.35, 1.25, length(p));
-
-    // randomly only some stars get the edge size boost
+    // Only some stars become larger near edges.
     float random_big = step(0.82, hash21(cell + vec2(91.7, id * 13.1)));
 
-    // subtle size multiplier near edges, only for some stars
     float size_boost = 1.0 + edge_factor * random_big * 1.35;
-
     float size = base_size * size_boost;
 
     float d = length(local);
     float star = exists * smoothstep(size, 0.0, d);
 
-    // slight brightness boost for bigger edge stars
     float brightness_boost = 1.0 + edge_factor * random_big * 0.35;
     star *= brightness_boost;
 
@@ -878,8 +880,7 @@ void main() {
 
     float t = u_time;
 
-    // Moving vanishing point.
-    // This prevents a permanently static center point.
+    // Slightly moving vanishing point.
     vec2 center_drift = vec2(
         sin(t * 0.071 + u_seed) * 0.075,
         cos(t * 0.063 + u_seed * 0.7) * 0.060
@@ -887,46 +888,68 @@ void main() {
 
     p -= center_drift;
 
+    float radial = length(p);
+
+    // 0.0 near center, 1.0 near edges.
+    float edge_factor = smoothstep(0.35, 1.35, radial);
+
+    // Center dust mask:
+    // dense in center, weaker near edges.
+    float center_mask = 1.0 - smoothstep(0.25, 1.35, radial);
+    center_mask = pow(center_mask, 1.35);
+
+    // Keep a little dust near edges so they do not become empty.
+    center_mask = mix(0.18, 1.0, center_mask);
+
     vec3 color = vec3(0.003, 0.006, 0.018);
 
-    // Nebula pseudo-depth sheets.
+    // Nebula / dust layers.
     for (int i = 0; i < NEBULA_LAYERS; i++) {
         float id = float(i);
 
-        // z moves from 0.0 to 1.0.
-        // With q = p / depth, larger z means the cloud layer expands outward.
+        // z grows over time, causing center-to-edge expansion.
         float z = fract(id / float(NEBULA_LAYERS) + t * u_speed * 0.045 + 10.0);
 
         float fade =
             smoothstep(0.02, 0.22, z) *
             (1.0 - smoothstep(0.78, 1.0, z));
 
-        // Corrected direction:
-        // far layer: small depth -> more compact
-        // near layer: large depth -> expanded outward
         float depth = 0.22 + z * 2.40;
-        vec2 q = p / depth;
 
-        // Gentle lateral drift, scaled by depth.
-        // Far layers move less; near layers move slightly more.
+        // Dust movement is accelerated near the screen edges.
+        // Center stays calmer, edges move faster.
+        float edge_speed_boost = 1.0 + edge_factor * z * 1.15;
+
+        float accelerated_depth = depth * edge_speed_boost;
+
+        vec2 q = p / accelerated_depth;
+
+        // Gentle layer drift, also slightly stronger near edges.
         q += vec2(
             sin(t * 0.031 + id * 1.9),
             cos(t * 0.027 + id * 2.6)
-        ) * mix(0.18, 0.46, z);
+        ) * mix(0.18, 0.46, z) * mix(1.0, 1.25, edge_factor);
 
         q = rot(t * 0.006 + id * 0.41) * q;
 
         float d = nebula_density(q, id);
 
-        // Nearer clouds are a bit stronger, but fade before reset.
-        float weight = fade * mix(0.48, 1.18, z);
+        // Denser center, thinner edges.
+        d *= center_mask;
+
+        float layer_mask = pow(center_mask, mix(0.9, 1.6, fract(id * 0.37 + u_seed)));
+
+        float weight = fade * mix(0.48, 1.18, z) * layer_mask;
 
         vec3 layer_color = nebula_palette(d, id);
+
+        // Slightly weaker/darker dust near edges.
+        layer_color *= mix(0.72, 1.0, center_mask);
 
         color += layer_color * d * weight * 0.65;
     }
 
-    // Procedural star depth layers.
+    // Stars.
     float stars = 0.0;
 
     for (int i = 0; i < STAR_LAYERS; i++) {
@@ -940,19 +963,17 @@ void main() {
     color += vec3(0.70, 0.80, 1.00) * stars * 1.00;
 
     // Soft edge darkening.
-    float r = length(p);
-    float vignette = 1.0 - smoothstep(1.10, 1.85, r) * 0.55;
+    float vignette = 1.0 - smoothstep(1.10, 1.85, radial) * 0.55;
     color *= vignette;
 
-    // Brightness cap.
     color *= u_brightness;
-
-    // Gentle gamma lift.
     color = pow(color, vec3(0.86));
 
     gl_FragColor = vec4(color, 1.0);
 }
 "#;
+
+
 
 
 
