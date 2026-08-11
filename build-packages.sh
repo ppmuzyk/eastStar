@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="0.3.2"
+VERSION="0.4.0"
 ARCH="x86_64"
 BIN_DIR="target/release"
 ASSETS_DIR="assets"
@@ -163,7 +163,12 @@ rpmbuild -bb \
     --define "_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
     "${SPEC_DIR}/eaststar.spec"
 
-echo "RPM: $(ls -lh "${RPM_OUTPUT_DIR}/eaststar-${VERSION}-1.${ARCH}.rpm" | awk '{print $5}')"
+RPM_FILE="$(find "${RPM_OUTPUT_DIR}" -maxdepth 1 -type f -name "eaststar-${VERSION}-*.${ARCH}.rpm" -print -quit)"
+if [ -z "${RPM_FILE}" ]; then
+    echo "RPM package was not produced" >&2
+    exit 1
+fi
+echo "RPM: $(ls -lh "${RPM_FILE}" | awk '{print $5}')"
 
 # === Build DEB manually ===
 echo ""

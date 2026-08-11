@@ -31,6 +31,14 @@
   <url type="homepage">https://github.com/ppmuzyk/eastStar</url>
 
   <releases>
+    <release version="0.4.0" date="2026-08-11">
+      <description>
+        <p>Stops the saver immediately when the session locks, preventing
+        hidden rendering from using GPU resources behind the lock screen.</p>
+        <p>Reduces background lock-state checks while the session is idle and
+        locked.</p>
+      </description>
+    </release>
     <release version="0.2.1" date="2026-06-24">
       <description>
         <p>Bug fix: mouse cursor is now hidden during fullscreen saver.</p>
