@@ -2,16 +2,15 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="0.4.0"
+VERSION="0.4.1"
 ARCH="x86_64"
 BIN_DIR="target/release"
 ASSETS_DIR="assets"
 
-# Ensure release binaries exist
-if [ ! -f "$BIN_DIR/eaststar" ] || [ ! -f "$BIN_DIR/eaststar-saver" ] || [ ! -f "$BIN_DIR/eaststar-daemon" ]; then
-    echo "Building release binaries..."
-    cargo build --release --bins
-fi
+# Always rebuild release binaries: packaging a stale target/release directory
+# can otherwise publish an older executable under a new package version.
+echo "Building release binaries..."
+cargo build --release --bins
 
 mkdir -p dist
 
