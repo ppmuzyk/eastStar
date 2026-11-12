@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="0.4.1"
+VERSION="$(cargo pkgid --quiet | sed 's/.*@//')"
 ARCH="x86_64"
 BIN_DIR="target/release"
 ASSETS_DIR="assets"

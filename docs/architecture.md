@@ -45,6 +45,11 @@ Target behavior:
 - saver dismissal happens on user activity and hands control back cleanly
 
 ### 4. Platform adapters
+
+The current GNOME adapter lives in `src/platform.rs` and owns idle-monitor access.
+The lock adapter lives in `src/lock.rs`. Platform integration is kept separate
+from the UI and renderer so another desktop can be added without rewriting them.
+
 ### 5. Visual Effects Architecture (v0.3.0+)
 
 Visual effects are modularized into separate files under `src/visual/`:
@@ -71,15 +76,15 @@ Three binaries:
 | `eaststar-daemon` | Background idle monitor | systemd `--user` service, auto-started at login |
 | `eaststar-saver` | Fullscreen visual renderer | Spawned by daemon on idle timeout, or by preferences panel for preview |
 
-Library modules:
+Source layout:
 
-- `main.rs` — GTK4 preferences panel (settings UI, preview button)
-- `app.rs` — legacy macroquad orchestration prototype
-- `platform/` — desktop/session integration (idle monitor via DBus)
-- `settings/` — config load/save from `~/.config/eaststar/settings.conf`
-- `visual/` — rendering and animation logic (procedural nebula, pipes, plasma), each in its own module
-- `lock/` — lock coordination API (loginctl, DBus, xdg-screensaver fallbacks)
-- `saver.rs` + `src/bin/eaststar-saver.rs` — fullscreen saver runtime
+- `src/main.rs` — GTK4 preferences panel (settings UI, preview button)
+- `src/platform.rs` — GNOME idle monitor integration
+- `src/settings.rs` — config load/save from `~/.config/eaststar/settings.conf`
+- `src/visual/` — rendering and animation logic (procedural nebula, pipes, plasma), each in its own module
+- `src/lock.rs` — lock coordination API (loginctl, DBus, xdg-screensaver fallbacks)
+- `src/saver.rs` + `src/bin/eaststar-saver.rs` — fullscreen saver runtime
+- `src/bin/eaststar-daemon.rs` — sole owner of automatic idle-triggered launch and delayed lock
 
 ## Daemon Design
 
@@ -117,6 +122,7 @@ It uses `Type=simple` with `Restart=on-failure` so it comes back after crashes.
 ```
 
 - Preferences panel writes to `settings.conf` → daemon reads it live
+- Preferences panel preview button → starts an explicit preview session
 - Daemon spawns saver process → saver runs fullscreen until user input
 - Daemon can also request screen lock via loginctl/DBus
 

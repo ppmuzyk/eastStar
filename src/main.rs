@@ -1,4 +1,3 @@
-use eaststar::lock::{SessionLocker, SystemLocker};
 use eaststar::platform::{GnomeIdleMonitor, IdleMonitor};
 use eaststar::settings::{config_path, AppSettings, VisualEffect};
 use gtk::glib;
@@ -16,16 +15,9 @@ use std::time::Instant;
 
 const APP_ID: &str = "com.ppmuzyk.eaststar";
 
-enum SaverLaunchMode {
-    Preview,
-    Automatic,
-}
-
 struct SaverProcess {
     child: Child,
-    mode: SaverLaunchMode,
     launched_at: Instant,
-    lock_requested: bool,
 }
 
 fn main() -> glib::ExitCode {
@@ -45,7 +37,6 @@ fn build_ui(app: &Application) {
 
     let settings = Rc::new(RefCell::new(AppSettings::load()));
     let idle_monitor = Rc::new(RefCell::new(GnomeIdleMonitor::new()));
-    let locker = Rc::new(SystemLocker);
     let saver_process = Rc::new(RefCell::new(None::<SaverProcess>));
     let status_label = Label::new(None);
     let idle_label = Label::new(None);
@@ -330,7 +321,6 @@ fn build_ui(app: &Application) {
         let saver_state_label = saver_state_label.clone();
         let settings = Rc::clone(&settings);
         let idle_monitor = Rc::clone(&idle_monitor);
-        let locker = Rc::clone(&locker);
         let saver_process = Rc::clone(&saver_process);
         let status_label = status_label.clone();
         glib::timeout_add_seconds_local(1, move || {
@@ -346,12 +336,8 @@ fn build_ui(app: &Application) {
             countdown_label.set_text(&countdown_text(idle_seconds, delay_seconds));
             refresh_saver_process_state(
                 &saver_process,
-                locker.as_ref(),
                 &saver_state_label,
                 &status_label,
-                idle_seconds,
-                delay_seconds,
-                settings.borrow().lock_after_seconds,
             );
             glib::ControlFlow::Continue
         });
@@ -496,56 +482,31 @@ fn spawn_saver_preview(saver_process: &Rc<RefCell<Option<SaverProcess>>>) -> Res
     let child = spawn_saver_process()?;
     *saver_process.borrow_mut() = Some(SaverProcess {
         child,
-        mode: SaverLaunchMode::Preview,
         launched_at: Instant::now(),
-        lock_requested: false,
     });
     Ok(())
 }
 
 fn refresh_saver_process_state(
     saver_process: &Rc<RefCell<Option<SaverProcess>>>,
-    locker: &dyn SessionLocker,
     saver_state_label: &Label,
     status_label: &Label,
-    idle_seconds: Option<u64>,
-    delay_seconds: u64,
-    lock_after_seconds: u64,
 ) {
     let mut running = saver_process.borrow_mut();
 
     if let Some(process) = running.as_mut() {
         match process.child.try_wait() {
             Ok(Some(status)) => {
-                let mode_name = match process.mode {
-                    SaverLaunchMode::Preview => "preview",
-                    SaverLaunchMode::Automatic => "automatic",
-                };
                 let lifetime = process.launched_at.elapsed();
                 let result = if status.success() { "finished" } else { "failed" };
                 status_label.set_text(&format!(
-                    "The {mode_name} session {result} after {}.",
+                    "The preview session {result} after {}.",
                     format_duration(lifetime.as_secs())
                 ));
                 *running = None;
             }
             Ok(None) => {
-                let mode_name = match process.mode {
-                    SaverLaunchMode::Preview => "Preview",
-                    SaverLaunchMode::Automatic => "Automatic",
-                };
-                if matches!(process.mode, SaverLaunchMode::Automatic)
-                    && lock_after_seconds > 0
-                    && !process.lock_requested
-                    && process.launched_at.elapsed().as_secs() >= lock_after_seconds
-                {
-                    locker.lock();
-                    process.lock_requested = true;
-                    status_label.set_text("Lock request sent after the saver delay.");
-                }
-                saver_state_label.set_text(&format!(
-                    "{mode_name} mode is currently running."
-                ));
+                saver_state_label.set_text("Preview is currently open.");
                 return;
             }
             Err(error) => {
@@ -555,27 +516,7 @@ fn refresh_saver_process_state(
         }
     }
 
-    if idle_seconds.is_some_and(|idle| idle >= delay_seconds) {
-        match spawn_saver_process() {
-            Ok(child) => {
-                *running = Some(SaverProcess {
-                    child,
-                    mode: SaverLaunchMode::Automatic,
-                    launched_at: Instant::now(),
-                    lock_requested: false,
-                });
-                saver_state_label.set_text("Automatic mode is currently running.");
-                status_label.set_text("Idle time reached the activation delay.");
-            }
-            Err(error) => {
-                status_label.set_text(&format!(
-                    "Could not start the screen saver automatically: {error}"
-                ));
-            }
-        }
-    } else {
-        saver_state_label.set_text("Screen saver is idle.");
-    }
+    saver_state_label.set_text("Screen saver is idle.");
 }
 
 fn spawn_saver_process() -> Result<Child, String> {
@@ -632,7 +573,7 @@ fn format_duration(total_seconds: u64) -> String {
 
 fn countdown_text(idle_seconds: Option<u64>, delay_seconds: u64) -> String {
     match idle_seconds {
-        Some(idle) if idle >= delay_seconds => "Launching now".to_owned(),
+        Some(idle) if idle >= delay_seconds => "Activation threshold reached".to_owned(),
         Some(idle) => format!("In {}", format_duration(delay_seconds.saturating_sub(idle))),
         None => "Waiting for GNOME idle monitor".to_owned(),
     }

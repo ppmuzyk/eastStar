@@ -17,12 +17,12 @@ Download the latest package from [GitHub Releases](https://github.com/ppmuzyk/ea
 
 **Fedora/RHEL:**
 ```bash
-sudo rpm -i eaststar-0.3.0-1.x86_64.rpm
+sudo rpm -i eaststar-0.4.2-1.x86_64.rpm
 ```
 
 **Debian/Ubuntu:**
 ```bash
-sudo dpkg -i eaststar_0.3.0-1_amd64.deb
+sudo dpkg -i eaststar_0.4.2-1_amd64.deb
 ```
 
 The daemon starts automatically after installation if you're currently logged in. Otherwise it starts on next login.
@@ -42,7 +42,7 @@ Three binaries, one purpose:
 | `eaststar-daemon` | Background idle monitor (systemd user service) |
 | `eaststar-saver` | Fullscreen visual renderer |
 
-The daemon runs as a background service, polls GNOME idle time every second, and spawns the saver when idle reaches your configured delay. The preferences panel is only needed when you want to change settings — it writes to `~/.config/eaststar/settings.conf` and the daemon picks up changes live.
+The daemon runs as a background service, polls GNOME idle time every second, and is the sole owner that spawns the saver when idle reaches your configured delay. The preferences panel displays idle/countdown status, manages settings, and can launch an explicit preview; it never starts automatic activation. The daemon picks up settings changes live.
 
 ```
 Preferences panel ──writes──→ settings.conf ──reads──→ Daemon ──spawns──→ Saver

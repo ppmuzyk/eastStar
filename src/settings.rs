@@ -74,6 +74,10 @@ impl AppSettings {
             Err(_) => return Self::default(),
         };
 
+        Self::parse(&content)
+    }
+
+    fn parse(content: &str) -> Self {
         let mut settings = Self::default();
 
         for line in content.lines() {
@@ -147,4 +151,36 @@ pub fn config_path() -> PathBuf {
     }
 
     PathBuf::from("settings.conf")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AppSettings, VisualEffect};
+
+    #[test]
+    fn parses_supported_settings_and_legacy_effect_aliases() {
+        let settings = AppSettings::parse(
+            "saver_delay_seconds=240\nlock_after_seconds=90\nvisual_effect=storm-front\n",
+        );
+
+        assert_eq!(settings.saver_delay_seconds, 240);
+        assert_eq!(settings.lock_after_seconds, 90);
+        assert_eq!(settings.visual_effect, VisualEffect::Pipes);
+    }
+
+    #[test]
+    fn clamps_numeric_settings_and_ignores_invalid_values() {
+        let settings = AppSettings::parse(
+            "saver_delay_seconds=1\nlock_after_seconds=9000\nvisual_effect=unknown\n",
+        );
+
+        assert_eq!(settings.saver_delay_seconds, 30);
+        assert_eq!(settings.lock_after_seconds, 7200);
+        assert_eq!(settings.visual_effect, VisualEffect::NebulaFlight);
+
+        let settings =
+            AppSettings::parse("saver_delay_seconds=not-a-number\nlock_after_seconds=-1\n");
+        assert_eq!(settings.saver_delay_seconds, 180);
+        assert_eq!(settings.lock_after_seconds, 0);
+    }
 }
