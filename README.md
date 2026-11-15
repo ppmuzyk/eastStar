@@ -17,12 +17,12 @@ Download the latest package from [GitHub Releases](https://github.com/ppmuzyk/ea
 
 **Fedora/RHEL:**
 ```bash
-sudo rpm -i eaststar-0.4.2-1.x86_64.rpm
+sudo rpm -i eaststar-0.5.0-1.fc45.x86_64.rpm
 ```
 
 **Debian/Ubuntu:**
 ```bash
-sudo dpkg -i eaststar_0.4.2-1_amd64.deb
+sudo dpkg -i eaststar_0.5.0-1_amd64.deb
 ```
 
 The daemon starts automatically after installation if you're currently logged in. Otherwise it starts on next login.
@@ -56,6 +56,9 @@ Preferences panel ──writes──→ settings.conf ──reads──→ Daemo
 | Activation delay | 180s (3 min) | 30–3600s |
 | Lock after saver | 0 (disabled) | 0–7200s |
 | Visual effect | Nebula Flight (procedural) | Nebula Flight / Pipes / Fractal Plasma |
+| Pipes turn frequency | 12% | 0–50% |
+
+The Pipes turn-frequency control appears when Pipes is selected; lower values create longer, straighter routes.
 
 ## Managing the Daemon
 

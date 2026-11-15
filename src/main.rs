@@ -1,5 +1,8 @@
 use eaststar::platform::{GnomeIdleMonitor, IdleMonitor};
-use eaststar::settings::{config_path, AppSettings, VisualEffect};
+use eaststar::settings::{
+    config_path, AppSettings, VisualEffect, MAX_PIPES_TURN_CHANCE_PERCENT,
+    MIN_PIPES_TURN_CHANCE_PERCENT,
+};
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::{
@@ -184,6 +187,30 @@ fn build_ui(app: &Application) {
     effect_combo.set_halign(gtk::Align::End);
     visuals_grid.attach(&effect_label, 0, 0, 1, 1);
     visuals_grid.attach(&effect_combo, 1, 0, 1, 1);
+
+    let turns_label = Label::new(Some("Pipe turn frequency (%)"));
+    turns_label.set_xalign(0.0);
+    turns_label.set_hexpand(true);
+    turns_label.set_tooltip_text(Some(
+        "Chance that a pipe changes direction when it can continue straight. Lower values make longer, straighter routes.",
+    ));
+    let turns_adjustment = Adjustment::new(
+        settings.borrow().pipes_turn_chance_percent as f64,
+        MIN_PIPES_TURN_CHANCE_PERCENT as f64,
+        MAX_PIPES_TURN_CHANCE_PERCENT as f64,
+        1.0,
+        5.0,
+        0.0,
+    );
+    let turns_spin = SpinButton::new(Some(&turns_adjustment), 1.0, 0);
+    turns_spin.set_numeric(true);
+    turns_spin.set_width_chars(6);
+    turns_spin.set_halign(gtk::Align::End);
+    visuals_grid.attach(&turns_label, 0, 1, 1, 1);
+    visuals_grid.attach(&turns_spin, 1, 1, 1, 1);
+    let pipes_setting_visible = settings.borrow().visual_effect == VisualEffect::Pipes;
+    turns_label.set_visible(pipes_setting_visible);
+    turns_spin.set_visible(pipes_setting_visible);
     visuals_content.append(&visuals_grid);
 
     visuals_card.set_child(Some(&visuals_content));
@@ -274,6 +301,8 @@ fn build_ui(app: &Application) {
     {
         let settings = Rc::clone(&settings);
         let status_label = status_label.clone();
+        let turns_label = turns_label.clone();
+        let turns_spin = turns_spin.clone();
         effect_combo.connect_changed(move |combo| {
             let mut next = settings.borrow().clone();
             next.visual_effect = combo
@@ -281,6 +310,19 @@ fn build_ui(app: &Application) {
                 .as_deref()
                 .and_then(VisualEffect::parse)
                 .unwrap_or(VisualEffect::NebulaFlight);
+            apply_settings_update(next, &settings, &status_label);
+            let visible = settings.borrow().visual_effect == VisualEffect::Pipes;
+            turns_label.set_visible(visible);
+            turns_spin.set_visible(visible);
+        });
+    }
+
+    {
+        let settings = Rc::clone(&settings);
+        let status_label = status_label.clone();
+        turns_spin.connect_value_changed(move |spin| {
+            let mut next = settings.borrow().clone();
+            next.pipes_turn_chance_percent = spin.value().round() as u8;
             apply_settings_update(next, &settings, &status_label);
         });
     }

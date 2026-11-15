@@ -16,7 +16,10 @@ impl SaverApp {
     pub fn new() -> Self {
         let settings = AppSettings::load();
         Self {
-            visual_session: create_visual_session(settings.visual_effect),
+            visual_session: create_visual_session(
+                settings.visual_effect,
+                settings.pipes_turn_chance_percent,
+            ),
             visual_prepared: false,
             pending_size: None,
             pending_size_frames: 0,

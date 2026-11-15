@@ -16,10 +16,13 @@ pub trait VisualSession {
     fn draw(&self, width: f32, height: f32);
 }
 
-pub fn create_visual_session(effect: VisualEffect) -> Box<dyn VisualSession> {
+pub fn create_visual_session(
+    effect: VisualEffect,
+    pipes_turn_chance_percent: u8,
+) -> Box<dyn VisualSession> {
     match effect {
         VisualEffect::NebulaFlight => Box::new(NebulaFlightVisual::new()),
-        VisualEffect::Pipes => Box::new(PipesVisual::new()),
+        VisualEffect::Pipes => Box::new(PipesVisual::new(pipes_turn_chance_percent)),
         VisualEffect::Plasma => Box::new(PlasmaVisual::new()),
     }
 }

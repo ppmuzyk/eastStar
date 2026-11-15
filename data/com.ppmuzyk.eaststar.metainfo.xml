@@ -31,6 +31,14 @@
   <url type="homepage">https://github.com/ppmuzyk/eastStar</url>
 
   <releases>
+    <release version="0.5.0" date="2026-11-15">
+      <description>
+        <p>Rebuilds Pipes with smooth, lit 3D tube meshes, rounded elbows,
+        distinct route colors, and configurable turn frequency.</p>
+        <p>Adds a Pipes turn-frequency preference and improves route density
+        and visual continuity.</p>
+      </description>
+    </release>
     <release version="0.4.2" date="2026-11-12">
       <description>
         <p>Prevents duplicate automatic saver launches by making the daemon
@@ -76,7 +84,4 @@
 
   <icon type="stock">com.ppmuzyk.eaststar</icon>
 
-  <recommends>
-    <control>session</control>
-  </recommends>
 </component>

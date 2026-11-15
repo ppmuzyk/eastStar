@@ -6,6 +6,9 @@ use std::path::PathBuf;
 
 const DEFAULT_SAVER_DELAY_SECONDS: u64 = 180;
 const DEFAULT_LOCK_AFTER_SECONDS: u64 = 0;
+pub const DEFAULT_PIPES_TURN_CHANCE_PERCENT: u8 = 12;
+pub const MIN_PIPES_TURN_CHANCE_PERCENT: u8 = 0;
+pub const MAX_PIPES_TURN_CHANCE_PERCENT: u8 = 50;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VisualEffect {
@@ -54,6 +57,7 @@ pub struct AppSettings {
     pub saver_delay_seconds: u64,
     pub lock_after_seconds: u64,
     pub visual_effect: VisualEffect,
+    pub pipes_turn_chance_percent: u8,
 }
 
 impl Default for AppSettings {
@@ -62,6 +66,7 @@ impl Default for AppSettings {
             saver_delay_seconds: DEFAULT_SAVER_DELAY_SECONDS,
             lock_after_seconds: DEFAULT_LOCK_AFTER_SECONDS,
             visual_effect: VisualEffect::NebulaFlight,
+            pipes_turn_chance_percent: DEFAULT_PIPES_TURN_CHANCE_PERCENT,
         }
     }
 }
@@ -106,6 +111,14 @@ impl AppSettings {
                         settings.visual_effect = effect;
                     }
                 }
+                "pipes_turn_chance_percent" => {
+                    if let Ok(chance) = value.trim().parse::<u8>() {
+                        settings.pipes_turn_chance_percent = chance.clamp(
+                            MIN_PIPES_TURN_CHANCE_PERCENT,
+                            MAX_PIPES_TURN_CHANCE_PERCENT,
+                        );
+                    }
+                }
                 _ => {}
             }
         }
@@ -119,14 +132,17 @@ impl AppSettings {
             fs::create_dir_all(parent)?;
         }
 
-        let content = format!(
-            "# eastStar settings\nsaver_delay_seconds={}\nlock_after_seconds={}\nvisual_effect={}\n",
+        fs::write(path, self.serialize())
+    }
+
+    fn serialize(&self) -> String {
+        format!(
+            "# eastStar settings\nsaver_delay_seconds={}\nlock_after_seconds={}\nvisual_effect={}\npipes_turn_chance_percent={}\n",
             self.saver_delay_seconds,
             self.lock_after_seconds,
-            self.visual_effect.config_value()
-        );
-
-        fs::write(path, content)
+            self.visual_effect.config_value(),
+            self.pipes_turn_chance_percent
+        )
     }
 }
 
@@ -155,32 +171,67 @@ pub fn config_path() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::{AppSettings, VisualEffect};
+    use super::{
+        AppSettings, DEFAULT_PIPES_TURN_CHANCE_PERCENT, MAX_PIPES_TURN_CHANCE_PERCENT,
+        VisualEffect,
+    };
 
     #[test]
     fn parses_supported_settings_and_legacy_effect_aliases() {
         let settings = AppSettings::parse(
-            "saver_delay_seconds=240\nlock_after_seconds=90\nvisual_effect=storm-front\n",
+            "saver_delay_seconds=240\nlock_after_seconds=90\nvisual_effect=storm-front\npipes_turn_chance_percent=7\n",
         );
 
         assert_eq!(settings.saver_delay_seconds, 240);
         assert_eq!(settings.lock_after_seconds, 90);
         assert_eq!(settings.visual_effect, VisualEffect::Pipes);
+        assert_eq!(settings.pipes_turn_chance_percent, 7);
     }
 
     #[test]
     fn clamps_numeric_settings_and_ignores_invalid_values() {
         let settings = AppSettings::parse(
-            "saver_delay_seconds=1\nlock_after_seconds=9000\nvisual_effect=unknown\n",
+            "saver_delay_seconds=1\nlock_after_seconds=9000\nvisual_effect=unknown\npipes_turn_chance_percent=99\n",
         );
 
         assert_eq!(settings.saver_delay_seconds, 30);
         assert_eq!(settings.lock_after_seconds, 7200);
         assert_eq!(settings.visual_effect, VisualEffect::NebulaFlight);
+        assert_eq!(
+            settings.pipes_turn_chance_percent,
+            MAX_PIPES_TURN_CHANCE_PERCENT
+        );
 
         let settings =
-            AppSettings::parse("saver_delay_seconds=not-a-number\nlock_after_seconds=-1\n");
+            AppSettings::parse("saver_delay_seconds=not-a-number\nlock_after_seconds=-1\npipes_turn_chance_percent=not-a-number\n");
         assert_eq!(settings.saver_delay_seconds, 180);
         assert_eq!(settings.lock_after_seconds, 0);
+        assert_eq!(
+            settings.pipes_turn_chance_percent,
+            DEFAULT_PIPES_TURN_CHANCE_PERCENT
+        );
+    }
+
+    #[test]
+    fn older_settings_default_the_pipes_turn_chance() {
+        let settings =
+            AppSettings::parse("saver_delay_seconds=240\nlock_after_seconds=0\nvisual_effect=pipes\n");
+
+        assert_eq!(
+            settings.pipes_turn_chance_percent,
+            DEFAULT_PIPES_TURN_CHANCE_PERCENT
+        );
+    }
+
+    #[test]
+    fn pipes_turn_chance_round_trips_through_config_text() {
+        let mut settings = AppSettings::default();
+        settings.visual_effect = VisualEffect::Pipes;
+        settings.pipes_turn_chance_percent = 23;
+
+        let reparsed = AppSettings::parse(&settings.serialize());
+
+        assert_eq!(reparsed.visual_effect, VisualEffect::Pipes);
+        assert_eq!(reparsed.pipes_turn_chance_percent, 23);
     }
 }

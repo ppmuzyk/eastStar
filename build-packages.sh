@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$(dirname "$0")"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT_DIR"
 
 VERSION="$(cargo pkgid --quiet | sed 's/.*@//')"
 ARCH="x86_64"
@@ -120,7 +121,6 @@ Burn-in safe with OLED-friendly dark mode.
 /usr/share/doc/eaststar/README.md
 /usr/lib/systemd/user/eaststar.service
 /usr/lib/systemd/user-preset/80-eaststar.preset
-/usr/lib/systemd/user-preset/80-eaststar.preset
 SPECEOF
 
 # Add all icon sizes to %files
@@ -154,6 +154,12 @@ echo "Otherwise it will start automatically on next login."
 echo ""
 RPMSCRIPT
 
+cat >> "${SPEC_DIR}/eaststar.spec" << 'RPMCHANGELOG'
+%changelog
+* Sun Nov 15 2026 Przemek Muzyk <przemyslaw.muzyk@gmail.com> - 0.5.0-1
+- Improve Pipes geometry, route colors, and configurable turn frequency
+RPMCHANGELOG
+
 # Build with rpmbuild
 RPM_OUTPUT_DIR="$(pwd)/dist"
 rpmbuild -bb \
@@ -169,7 +175,7 @@ if [ -z "${RPM_FILE}" ]; then
 fi
 echo "RPM: $(ls -lh "${RPM_FILE}" | awk '{print $5}')"
 
-# === Build DEB manually ===
+# === Build DEB ===
 echo ""
 echo "=== Building DEB ==="
 DEB_ROOT="dist/staging/deb/eaststar_${VERSION}-1_amd64"
@@ -254,26 +260,12 @@ Description: GNOME-first Wayland screensaver visualizer
  All effects are burn-in safe with OLED-friendly dark mode.
 CONTROL
 
-# Build DEB: ar archive with control.tar.gz, data.tar.gz, debian-binary
+# Build the DEB with dpkg tooling to preserve the standard archive format.
 DEB_PKG="dist/eaststar_${VERSION}-1_amd64.deb"
 rm -f "$DEB_PKG"
-
-echo "2.0" > "${DEB_ROOT}/debian-binary"
-
-cd "${DEB_ROOT}"
-tar czf /tmp/eaststar-control.tar.gz -C DEBIAN .
-tar czf /tmp/eaststar-data.tar.gz --exclude=DEBIAN --exclude=debian-binary .
-
-cd /home/ppmuzyk/Projects/eastStar
-ar r "$DEB_PKG" \
-    "${DEB_ROOT}/debian-binary" \
-    /tmp/eaststar-control.tar.gz \
-    /tmp/eaststar-data.tar.gz 2>/dev/null
+dpkg-deb --build --root-owner-group "${DEB_ROOT}" "$DEB_PKG"
 
 echo "DEB: $(ls -lh "$DEB_PKG" | awk '{print $5}')"
-
-# Clean up tmp files
-rm -f /tmp/eaststar-control.tar.gz /tmp/eaststar-data.tar.gz
 
 echo ""
 echo "=== Post-install notes ==="
@@ -282,4 +274,4 @@ echo "  systemctl --user daemon-reload"
 echo "  systemctl --user enable --now eaststar.service"
 echo ""
 echo "=== Package summary ==="
-ls -lh dist/eaststar*.{rpm,deb,tar.gz} 2>/dev/null || echo "Some packages may have failed - check output above"
+ls -lh dist/eaststar*.rpm dist/eaststar*.deb
